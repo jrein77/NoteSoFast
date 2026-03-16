@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}NoteSoFast - User's Mind{% endblock %}
+{% block page_title %}User's Mind{% endblock %}
+
+{% block page_actions %}
+<button id="graph-export-btn" class="btn btn-secondary btn-sm">
+    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Export
+</button>
+{% endblock %}
+
+{% block head_extra %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+{% endblock %}
+
+{% block content_class %}content-body--full{% endblock %}
+
+{% block content %}
+<div class="graph-container" id="knowledge-graph">
+    <svg id="graph-svg"></svg>
+    <div class="graph-zoom-controls">
+        <button id="graph-zoom-in" class="graph-zoom-btn" title="Zoom In">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>
+        <button id="graph-zoom-out" class="graph-zoom-btn" title="Zoom Out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>
+    </div>
+    <div class="graph-bottom-bar">
+        <div class="graph-search-bar">
+            <svg class="graph-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="graph-search" class="graph-search-input" placeholder="Search nodes...">
+        </div>
+        <a href="{{ url_for('note_create') }}" class="btn btn-primary graph-add-btn">+ Add Note</a>
+    </div>
+    <div class="graph-legend">
+        <div class="legend-item"><span class="legend-dot legend-dot--green"></span> Mastered</div>
+        <div class="legend-item"><span class="legend-dot legend-dot--yellow"></span> Progressing</div>
+        <div class="legend-item"><span class="legend-dot legend-dot--red"></span> Not Understood</div>
+        <div class="legend-item"><span class="legend-dot legend-dot--gray"></span> Not Started</div>
+        <div class="legend-item"><span class="legend-line--dotted"></span> Potential Link</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script src="{{ url_for('static', filename='js/graph.js') }}"></script>
+{% endblock %}

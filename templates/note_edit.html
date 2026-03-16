@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}{% if note %}{{ note.title }}{% else %}New Note{% endif %} - NoteSoFast{% endblock %}
+{% block page_title %}{% if note %}Editor{% else %}New Note{% endif %}{% endblock %}
+
+{% block content_class %}content-body--editor{% endblock %}
+
+{% block content %}
+<form method="post" class="editor-container" id="note-form">
+    <div class="editor-toolbar">
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Bold" onclick="execFormat('bold')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                    <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
+                    <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
+                </svg>
+            </button>
+            <button type="button" class="toolbar-btn" title="Italic" onclick="execFormat('italic')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <line x1="19" y1="4" x2="10" y2="4"/>
+                    <line x1="14" y1="20" x2="5" y2="20"/>
+                    <line x1="15" y1="4" x2="9" y2="20"/>
+                </svg>
+            </button>
+            <button type="button" class="toolbar-btn" title="Underline" onclick="execFormat('underline')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/>
+                    <line x1="4" y1="21" x2="20" y2="21"/>
+                </svg>
+            </button>
+            <button type="button" class="toolbar-btn" title="Strikethrough" onclick="execFormat('strikeThrough')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M16 4H9a3 3 0 0 0 0 6h6a3 3 0 0 1 0 6H8"/>
+                    <line x1="4" y1="12" x2="20" y2="12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Heading" onclick="execFormat('formatBlock', 'h2')">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <text x="2" y="18" font-size="16" font-weight="700" font-family="Inter, sans-serif">H</text>
+                </svg>
+            </button>
+            <button type="button" class="toolbar-btn" title="Quote" onclick="execFormat('formatBlock', 'blockquote')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/>
+                    <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Bullet List" onclick="execFormat('insertUnorderedList')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <line x1="8" y1="6" x2="21" y2="6"/>
+                    <line x1="8" y1="12" x2="21" y2="12"/>
+                    <line x1="8" y1="18" x2="21" y2="18"/>
+                    <circle cx="4" cy="6" r="1" fill="currentColor"/>
+                    <circle cx="4" cy="12" r="1" fill="currentColor"/>
+                    <circle cx="4" cy="18" r="1" fill="currentColor"/>
+                </svg>
+            </button>
+            <button type="button" class="toolbar-btn" title="Numbered List" onclick="execFormat('insertOrderedList')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <line x1="10" y1="6" x2="21" y2="6"/>
+                    <line x1="10" y1="12" x2="21" y2="12"/>
+                    <line x1="10" y1="18" x2="21" y2="18"/>
+                    <text x="2" y="9" font-size="8" fill="currentColor" font-family="Inter, sans-serif">1</text>
+                    <text x="2" y="15" font-size="8" fill="currentColor" font-family="Inter, sans-serif">2</text>
+                    <text x="2" y="21" font-size="8" fill="currentColor" font-family="Inter, sans-serif">3</text>
+                </svg>
+            </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Undo" onclick="document.execCommand('undo')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                </svg>
+            </button>
+            <button type="button" class="toolbar-btn" title="Redo" onclick="document.execCommand('redo')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+            </button>
+        </div>
+
+        {% if note %}
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+            <a href="{{ url_for('note_chat', note_id=note.id) }}" class="toolbar-action-btn" title="Practice with AI">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span>Chat</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <div class="toolbar-spacer"></div>
+
+        <div class="toolbar-group toolbar-actions">
+            <a href="{{ url_for('notes_list') }}" class="btn btn-ghost btn-sm">Cancel</a>
+            <button type="submit" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                </svg>
+                {% if note %}Save{% else %}Create{% endif %}
+            </button>
+        </div>
+    </div>
+
+    <div class="editor-document">
+        <input
+            type="text"
+            id="title"
+            name="title"
+            class="editor-title-input"
+            placeholder="Untitled Note"
+            value="{{ note.title if note else '' }}"
+            required
+        >
+        <div class="editor-tags-row">
+            <svg class="editor-tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            <input
+                type="text"
+                id="tags"
+                name="tags"
+                class="editor-tags-input"
+                placeholder="Add tags (comma-separated)..."
+                value="{{ note.tags | join(', ') if note else '' }}"
+            >
+        </div>
+
+        <div
+            id="editor"
+            class="editor-body"
+            contenteditable="true"
+            data-placeholder="Start writing your note..."
+        >{{ note.content if note else '' }}</div>
+    </div>
+    <textarea id="content" name="content" class="editor-hidden-textarea">{{ note.content if note else '' }}</textarea>
+</form>
+
+<script>
+const editor = document.getElementById('editor');
+const hiddenContent = document.getElementById('content');
+const form = document.getElementById('note-form');
+
+// Sync contenteditable to hidden textarea on submit
+form.addEventListener('submit', function() {
+    hiddenContent.value = editor.innerText;
+});
+
+// Also sync periodically for safety
+editor.addEventListener('input', function() {
+    hiddenContent.value = editor.innerText;
+});
+
+function execFormat(command, value) {
+    document.execCommand(command, false, value || null);
+    editor.focus();
+}
+
+// Focus editor on load if new note
+{% if not note %}
+editor.focus();
+{% endif %}
+</script>
+{% endblock %}

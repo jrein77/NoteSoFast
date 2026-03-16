@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - {{ note.title }} - NoteSoFast{% endblock %}
+{% block page_title %}{{ note.title }}{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <a href="{{ url_for('note_detail', note_id=note.id) }}#note-content" class="btn btn-secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        View in Notes
+    </a>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+        </svg>
+        Back to User's Mind
+    </a>
+</div>
+{% endblock %}
+
+{% block content_class %}content-body--chat{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <div class="chat-messages" id="chat-messages">
+        {% for msg in messages %}
+        <div class="chat-message chat-message--{{ msg.role }}">
+            <div class="chat-bubble chat-bubble--{{ msg.role }}">
+                {{ msg.content }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="chat-input-area">
+        <form id="chat-form" class="chat-form">
+            <input type="text" id="chat-input" class="input chat-input-field"
+                   placeholder="Type your answer..." autocomplete="off" autofocus>
+            <select id="chat-mode" class="input chat-mode-select" title="Response mode">
+                <option value="auto">Auto</option>
+                <option value="direct">Direct Answer</option>
+                <option value="retrieval">Retrieval Question</option>
+                <option value="hints">Progressive Hints</option>
+            </select>
+            <button type="submit" class="btn btn-primary chat-send-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+                Send
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script>
+window.CHAT_NOTE_ID = "{{ note.id }}";
+</script>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

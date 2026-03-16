@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NoteSoFast{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="{{ url_for('index') }}" class="logo">
+                <span class="logo-text">NoteSoFast</span>
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                    <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86"/>
+                </svg>
+            </a>
+        </div>
+
+        <div class="sidebar-nav">
+            <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <circle cx="4" cy="6" r="2"/>
+                    <circle cx="20" cy="6" r="2"/>
+                    <circle cx="4" cy="18" r="2"/>
+                    <circle cx="20" cy="18" r="2"/>
+                    <line x1="6" y1="7" x2="10" y2="10"/>
+                    <line x1="18" y1="7" x2="14" y2="10"/>
+                    <line x1="6" y1="17" x2="10" y2="14"/>
+                    <line x1="18" y1="17" x2="14" y2="14"/>
+                </svg>
+                <span>Knowledge Graph</span>
+            </a>
+
+            <a href="{{ url_for('notes_list') }}" class="nav-item {% if request.endpoint in ['notes_list', 'note_detail', 'note_edit', 'note_create'] %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>Notes</span>
+            </a>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-label">Adaptive PKM</div>
+            <div class="sidebar-profile">
+                <div class="sidebar-profile-avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </div>
+                <span class="sidebar-profile-name">Jake Reinhart</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="page-header">
+            <div class="page-header-left">
+                <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('sidebar-open')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                </button>
+                <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+            </div>
+            <div class="page-header-right">
+                <div class="page-actions">{% block page_actions %}{% endblock %}</div>
+                <button class="header-profile-btn" title="Profile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="content-body {% block content_class %}{% endblock %}">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    {% block body_scripts %}{% endblock %}
+</body>
+</html>

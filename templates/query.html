@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}NoteSoFast - Query{% endblock %}
+{% block page_title %}Query Your Knowledge{% endblock %}
+
+{% block content %}
+<div class="query-layout">
+    <div class="query-input-section">
+        <form method="post" class="query-form">
+            <div class="query-input-wrapper">
+                <textarea
+                    name="query"
+                    class="input textarea query-textarea"
+                    placeholder="Ask a question about your notes..."
+                    rows="3"
+                    required
+                >{% if result %}{{ result.query }}{% endif %}</textarea>
+                <button type="submit" class="btn btn-primary query-submit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                    Query
+                </button>
+            </div>
+        </form>
+
+        <div class="query-modes-info">
+            <h3 class="query-modes-title">Response Modes</h3>
+            <div class="query-modes-grid">
+                <div class="query-mode">
+                    <div class="query-mode-icon mode-direct">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <strong>Direct Answer</strong>
+                        <p class="text-muted">For mastered topics, retrieves content directly.</p>
+                    </div>
+                </div>
+                <div class="query-mode">
+                    <div class="query-mode-icon mode-question">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <strong>Retrieval Question</strong>
+                        <p class="text-muted">Prompts you to recall the answer from memory.</p>
+                    </div>
+                </div>
+                <div class="query-mode">
+                    <div class="query-mode-icon mode-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <strong>Progressive Hints</strong>
+                        <p class="text-muted">Guides you to the answer through scaffolded hints.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if result %}
+    <div class="query-result">
+        <div class="result-header">
+            <span class="result-mode-badge mode-badge-{{ result.mode }}">
+                {% if result.mode == 'direct' %}Direct Answer
+                {% elif result.mode == 'question' %}Retrieval Question
+                {% else %}Guided Hints{% endif %}
+            </span>
+        </div>
+
+        <div class="result-body">
+            <p>{{ result.response }}</p>
+        </div>
+
+        {% if result.sources %}
+        <div class="result-sources">
+            <h4>Related Notes</h4>
+            <ul>
+                {% for source in result.sources %}
+                <li>
+                    <a href="{{ url_for('note_detail', note_id=source.id) }}">{{ source.title }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
