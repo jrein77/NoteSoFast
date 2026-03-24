@@ -1345,21 +1345,56 @@ a:hover {
 }
 
 .chat-input-area {
-    padding: 16px 0;
+    padding: 12px 0;
     border-top: 1px solid var(--color-border);
 }
 
 .chat-form {
     display: flex;
+    flex-direction: column;
     gap: 8px;
+}
+
+.chat-input-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 6px 6px 6px 14px;
+    transition: border-color 0.15s ease;
+}
+
+.chat-input-wrap:focus-within {
+    border-color: var(--color-text-secondary);
 }
 
 .chat-input-field {
     flex: 1;
+    border: none;
+    background: transparent;
+    padding: 6px 0;
+    resize: none;
+    overflow-y: hidden;
+    line-height: 1.5;
+    font-size: 0.9rem;
+    min-height: 24px;
+    max-height: 120px;
+    font-family: inherit;
+    color: var(--color-text);
+}
+
+.chat-input-field:focus {
+    outline: none;
+    box-shadow: none;
 }
 
 .chat-send-btn {
-    padding: 10px 20px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    align-self: flex-end;
 }
 
 /* ===== Disabled Button ===== */
@@ -1372,11 +1407,12 @@ a:hover {
 /* ===== Chat Mode Select ===== */
 .chat-mode-select {
     width: auto;
-    min-width: 130px;
-    max-width: 170px;
-    padding: 8px 10px;
-    font-size: 0.8rem;
+    min-width: 100px;
+    max-width: 160px;
+    padding: 6px 8px;
+    font-size: 0.75rem;
     flex-shrink: 0;
+    align-self: flex-start;
 }
 
 /* ===== Note Card Actions ===== */
@@ -1938,24 +1974,18 @@ a:hover {
     }
     .chat-form {
         gap: 6px;
-        flex-wrap: wrap;
+    }
+    .chat-input-wrap {
+        padding: 4px 4px 4px 10px;
     }
     .chat-mode-select {
         min-width: 0;
-        flex: 1;
-        font-size: 0.75rem;
-        padding: 6px 8px;
-        order: 3;
-    }
-    .chat-input-field {
-        order: 1;
-        flex-basis: 100%;
+        font-size: 0.72rem;
+        padding: 4px 6px;
     }
     .chat-send-btn {
-        padding: 8px 14px;
+        padding: 6px 10px;
         font-size: 0.8rem;
-        order: 2;
-        flex: 1;
     }
 
     /* ---- Graph bottom bar: combined search + add note on mobile ---- */
@@ -2038,40 +2068,107 @@ a:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--color-border);
     font-size: 0.78rem;
     font-family: var(--font-mono);
+    gap: 16px;
 }
 
-.mastery-indicator {
-    padding: 3px 10px;
-    border-radius: var(--radius-sm);
+/* Mastery progress bar */
+.mastery-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.mastery-bar-label {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.mastery-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--color-surface-raised);
+    border-radius: 3px;
+    overflow: hidden;
+    max-width: 200px;
+}
+
+.mastery-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease, background-color 0.4s ease;
+}
+
+.mastery-bar-fill--green { background-color: var(--color-success); }
+.mastery-bar-fill--yellow { background-color: var(--color-warning); }
+.mastery-bar-fill--red { background-color: var(--color-danger); }
+.mastery-bar-fill--not_started { background-color: var(--color-text-muted); }
+
+.mastery-bar-pct {
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    min-width: 28px;
+    text-align: right;
+}
+
+/* Difficulty level with hover tooltip */
+.difficulty-indicator {
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    position: relative;
+    cursor: default;
     font-weight: 600;
 }
 
-.mastery-indicator--green {
-    background: rgba(52, 211, 153, 0.15);
-    color: var(--color-success);
+.difficulty-indicator[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.5;
+    width: 260px;
+    white-space: normal;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.mastery-indicator--yellow {
-    background: rgba(251, 191, 36, 0.15);
-    color: var(--color-warning);
+/* ---- Redact feature ---- */
+.redacted-word {
+    background: #ffffff;
+    color: transparent;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin: 0 1px;
+    user-select: none;
+    cursor: default;
+    display: inline;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
-.mastery-indicator--red {
-    background: rgba(248, 113, 113, 0.15);
-    color: var(--color-danger);
+.redacted-word:hover {
+    background: transparent;
+    color: var(--color-text);
 }
 
-.mastery-indicator--not_started {
-    background: rgba(102, 102, 102, 0.15);
-    color: var(--color-text-muted);
-}
-
-.difficulty-indicator {
-    color: var(--color-text-secondary);
+.toolbar-action-btn--active {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
 }
 
 /* ---- Verbatim detection badge ---- */

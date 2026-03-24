@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 import json
 
-from similarity import find_similar_pairs, compute_text_overlap
+from similarity import find_similar_pairs, compute_text_overlap, extract_redaction_targets
 from rag import RAGIndex
 from llm import (
     generate_rag_response, generate_chat_response,
@@ -428,6 +428,17 @@ def note_detail(note_id):
     return render_template("note_detail.html", note=note)
 
 
+@app.route("/api/notes/<note_id>/keywords")
+def note_keywords(note_id):
+    """Return redaction targets for a note (keywords + patterns)."""
+    note = notes.get(note_id)
+    if not note:
+        return jsonify({"keywords": [], "patterns": []}), 404
+    text = note["title"] + " " + note["content"]
+    targets = extract_redaction_targets(text, notes, max_keywords=30)
+    return jsonify(targets)
+
+
 @app.route("/notes/<note_id>/edit", methods=["GET", "POST"])
 def note_edit(note_id):
     note = notes.get(note_id)
@@ -500,8 +511,12 @@ def note_chat(note_id):
         retrieved_chunks = rag_index.query(user_msg, top_k=5)
 
         # --- Compute text overlap for verbatim detection ---
+        # Only run verbatim detection for levels 3+ and generation assessments.
+        # Levels 1-2 (cued/free recall) often expect near-verbatim answers
+        # (fill-in-the-blank, T/F, listing), so penalizing copying is wrong.
         source_text = " ".join(c["text"] for c in retrieved_chunks)
-        overlap_stats = compute_text_overlap(user_msg, source_text) if source_text.strip() else None
+        use_verbatim_detection = difficulty_level >= 3
+        overlap_stats = None
 
         # --- Evaluate the user's answer against the last AI question ---
         eval_result = {"correct": False, "partial": True, "verbatim": False, "feedback": "", "overlap": None}
@@ -514,6 +529,13 @@ def note_chat(note_id):
                 is_generation_assessment = msg.get("is_generation", False)
                 break
 
+        # Generation assessments always check for verbatim
+        if is_generation_assessment:
+            use_verbatim_detection = True
+
+        if use_verbatim_detection and source_text.strip():
+            overlap_stats = compute_text_overlap(user_msg, source_text)
+
         if last_ai_msg:
             if is_generation_assessment:
                 eval_result = evaluate_generation(
@@ -523,6 +545,10 @@ def note_chat(note_id):
                 eval_result = evaluate_response(
                     user_msg, retrieved_chunks, last_ai_msg, overlap_stats
                 )
+
+        # Force verbatim=False for levels 1-2 even if LLM flagged it
+        if not use_verbatim_detection:
+            eval_result["verbatim"] = False
 
         # --- Update mastery based on evaluation ---
         is_correct = eval_result["correct"]

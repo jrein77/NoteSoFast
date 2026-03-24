@@ -10,6 +10,23 @@ document.addEventListener('DOMContentLoaded', function () {
     // Scroll to bottom on load
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
+    // Auto-resize textarea: grows up to ~4 rows, then scrolls
+    var MAX_HEIGHT = 120; // ~4 rows
+    function autoResize() {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, MAX_HEIGHT) + 'px';
+        input.style.overflowY = input.scrollHeight > MAX_HEIGHT ? 'auto' : 'hidden';
+    }
+    input.addEventListener('input', autoResize);
+
+    // Enter sends, Shift+Enter adds newline
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+    });
+
     form.addEventListener('submit', async function (e) {
         e.preventDefault();
         const message = input.value.trim();
@@ -18,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Add user message to UI
         appendMessage('user', message);
         input.value = '';
+        autoResize();
         input.focus();
 
         // Get selected mode
@@ -75,15 +93,29 @@ document.addEventListener('DOMContentLoaded', function () {
         4: 'Level 4 (synthesis)',
     };
 
+    var LEVEL_TOOLTIPS = {
+        1: 'Cued recall \u2014 recognition-style prompts with partial information to trigger memory',
+        2: 'Free recall \u2014 open-ended questions with no cues, requiring retrieval entirely from memory',
+        3: 'Application \u2014 apply concepts to new scenarios, problem-solving, cross-concept reasoning',
+        4: 'Synthesis \u2014 integrate ideas across topics, evaluate trade-offs, create novel connections',
+    };
+
     function updateMasteryDisplay(masteryLabel, masteryValue, difficultyLevel) {
-        const masteryEl = document.getElementById('mastery-indicator');
-        if (masteryEl) {
-            masteryEl.textContent = (masteryValue * 100).toFixed(0) + '% — ' + masteryLabel;
-            masteryEl.className = 'mastery-indicator mastery-indicator--' + masteryLabel;
+        var pct = Math.round(masteryValue * 100);
+        var fill = document.getElementById('mastery-bar-fill');
+        var pctEl = document.getElementById('mastery-bar-pct');
+        if (fill) {
+            fill.style.width = pct + '%';
+            // Update color class
+            fill.className = 'mastery-bar-fill mastery-bar-fill--' + masteryLabel;
         }
-        const levelEl = document.getElementById('difficulty-indicator');
+        if (pctEl) {
+            pctEl.textContent = pct + '%';
+        }
+        var levelEl = document.getElementById('difficulty-indicator');
         if (levelEl) {
-            levelEl.textContent = LEVEL_LABELS[difficultyLevel] || ('Level ' + difficultyLevel);
+            levelEl.textContent = 'Level ' + difficultyLevel;
+            levelEl.setAttribute('data-tooltip', LEVEL_TOOLTIPS[difficultyLevel] || '');
         }
     }
 

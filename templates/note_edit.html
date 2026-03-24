@@ -97,6 +97,17 @@
         {% if note %}
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
+            <button type="button" id="redact-btn" class="toolbar-action-btn" title="Redact keywords to test recall">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <span>Redact</span>
+            </button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
             <a href="{{ url_for('note_chat', note_id=note.id) }}" class="toolbar-action-btn" title="Practice with AI">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -194,6 +205,75 @@ function execFormat(command, value) {
 // Focus editor on load if new note
 {% if not note %}
 editor.focus();
+{% endif %}
+
+{% if note %}
+// Redact feature
+(function () {
+    var noteId = "{{ note.id }}";
+    var btn = document.getElementById('redact-btn');
+    if (!btn || !editor) return;
+
+    var redacted = false;
+    var originalHTML = null;
+    var redactionData = null;
+
+    btn.addEventListener('click', async function () {
+        if (redacted) {
+            editor.innerHTML = originalHTML;
+            editor.contentEditable = 'true';
+            redacted = false;
+            btn.classList.remove('toolbar-action-btn--active');
+            return;
+        }
+
+        // Save current state
+        originalHTML = editor.innerHTML;
+
+        if (redactionData === null) {
+            try {
+                var res = await fetch('/api/notes/' + noteId + '/keywords');
+                redactionData = await res.json();
+            } catch (e) {
+                redactionData = { keywords: [], patterns: [] };
+            }
+        }
+
+        var keywords = redactionData.keywords || [];
+        var patterns = redactionData.patterns || [];
+        if (keywords.length === 0 && patterns.length === 0) return;
+
+        var patternRegex = patterns.length > 0 ? new RegExp('(' + patterns.join('|') + ')', 'g') : null;
+        var escaped = keywords.map(function (k) {
+            return '\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b';
+        });
+        var keywordRegex = escaped.length > 0 ? new RegExp('(' + escaped.join('|') + ')', 'gi') : null;
+
+        var html = originalHTML.replace(/(<[^>]*>)|([^<]+)/g, function (match, tag, text) {
+            if (tag) return tag;
+            if (patternRegex) {
+                text = text.replace(patternRegex, function (m) {
+                    return '<span class="redacted-word">' + m + '</span>';
+                });
+            }
+            if (keywordRegex) {
+                text = text.replace(/(<span class="redacted-word">.*?<\/span>)|([^<]+)/g, function (m, span, plain) {
+                    if (span) return span;
+                    if (!plain) return m;
+                    return plain.replace(keywordRegex, function (w) {
+                        return '<span class="redacted-word">' + w + '</span>';
+                    });
+                });
+            }
+            return text;
+        });
+
+        editor.innerHTML = html;
+        editor.contentEditable = 'false';
+        redacted = true;
+        btn.classList.add('toolbar-action-btn--active');
+    });
+})();
 {% endif %}
 </script>
 {% endblock %}

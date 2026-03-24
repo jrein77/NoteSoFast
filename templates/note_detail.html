@@ -21,6 +21,19 @@
         <div class="toolbar-divider"></div>
 
         <div class="toolbar-group">
+            <button id="redact-btn" class="toolbar-action-btn" title="Redact keywords to test recall">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <span>Redact</span>
+            </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-group">
             <a href="{{ url_for('note_chat', note_id=note.id) }}" class="toolbar-action-btn" title="Back to Chat">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <line x1="19" y1="12" x2="5" y2="12"/>
@@ -75,4 +88,89 @@
         </article>
     </div>
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+<script>
+(function () {
+    var noteId = "{{ note.id }}";
+    var btn = document.getElementById('redact-btn');
+    var contentEl = document.getElementById('note-content');
+    if (!btn || !contentEl) return;
+
+    var redacted = false;
+    var originalHTML = contentEl.innerHTML;
+    var redactionData = null;
+
+    btn.addEventListener('click', async function () {
+        if (redacted) {
+            contentEl.innerHTML = originalHTML;
+            redacted = false;
+            btn.classList.remove('toolbar-action-btn--active');
+            return;
+        }
+
+        if (redactionData === null) {
+            try {
+                var res = await fetch('/api/notes/' + noteId + '/keywords');
+                redactionData = await res.json();
+            } catch (e) {
+                redactionData = { keywords: [], patterns: [] };
+            }
+        }
+
+        var keywords = redactionData.keywords || [];
+        var patterns = redactionData.patterns || [];
+
+        if (keywords.length === 0 && patterns.length === 0) return;
+
+        // Build combined regex parts
+        var regexParts = [];
+
+        // Add server-provided patterns first (numbers, %, names) — case-sensitive
+        for (var i = 0; i < patterns.length; i++) {
+            regexParts.push(patterns[i]);
+        }
+
+        // Add TF-IDF keywords as whole-word case-insensitive matches
+        var escaped = keywords.map(function (k) {
+            return '\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b';
+        });
+
+        // We apply patterns (case-sensitive) and keywords (case-insensitive) separately
+        var patternRegex = regexParts.length > 0 ? new RegExp('(' + regexParts.join('|') + ')', 'g') : null;
+        var keywordRegex = escaped.length > 0 ? new RegExp('(' + escaped.join('|') + ')', 'gi') : null;
+
+        function redactText(text) {
+            // Apply pattern-based redaction first, then keyword-based
+            if (patternRegex) {
+                text = text.replace(patternRegex, function (m) {
+                    return '<span class="redacted-word">' + m + '</span>';
+                });
+            }
+            // For keywords, only replace in text not already inside a redacted span
+            if (keywordRegex) {
+                text = text.replace(/(<span class="redacted-word">.*?<\/span>)|([^<]+)/g, function (m, span, plain) {
+                    if (span) return span;
+                    if (!plain) return m;
+                    return plain.replace(keywordRegex, function (w) {
+                        return '<span class="redacted-word">' + w + '</span>';
+                    });
+                });
+            }
+            return text;
+        }
+
+        // Only replace text outside HTML tags
+        var html = originalHTML.replace(/(<[^>]*>)|([^<]+)/g, function (match, tag, text) {
+            if (tag) return tag;
+            return redactText(text);
+        });
+
+        contentEl.innerHTML = html;
+        redacted = true;
+        btn.classList.add('toolbar-action-btn--active');
+    });
+})();
+</script>
 {% endblock %}

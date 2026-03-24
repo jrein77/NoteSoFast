@@ -27,16 +27,18 @@
 {% block content %}
 <div class="chat-container">
     <div class="chat-status-bar">
-        <span id="mastery-indicator" class="mastery-indicator mastery-indicator--{{ note.mastery }}">
-            {{ (mastery_value * 100)|round|int }}% — {{ note.mastery }}
-        </span>
-        <span id="difficulty-indicator" class="difficulty-indicator">
-            {% if difficulty_level == 1 %}Level 1 (cued recall)
-            {% elif difficulty_level == 2 %}Level 2 (free recall)
-            {% elif difficulty_level == 3 %}Level 3 (application)
-            {% elif difficulty_level == 4 %}Level 4 (synthesis)
-            {% else %}Level {{ difficulty_level }}
-            {% endif %}
+        <div class="mastery-bar-wrapper">
+            <span class="mastery-bar-label">Mastery</span>
+            <div class="mastery-bar" id="mastery-bar">
+                <div class="mastery-bar-fill mastery-bar-fill--{{ note.mastery }}"
+                     id="mastery-bar-fill"
+                     style="width: {{ (mastery_value * 100)|round|int }}%"></div>
+            </div>
+            <span class="mastery-bar-pct" id="mastery-bar-pct">{{ (mastery_value * 100)|round|int }}%</span>
+        </div>
+        <span id="difficulty-indicator" class="difficulty-indicator"
+              data-tooltip="{% if difficulty_level == 1 %}Cued recall — recognition-style prompts with partial information to trigger memory{% elif difficulty_level == 2 %}Free recall — open-ended questions with no cues, requiring retrieval entirely from memory{% elif difficulty_level == 3 %}Application — apply concepts to new scenarios, problem-solving, cross-concept reasoning{% elif difficulty_level == 4 %}Synthesis — integrate ideas across topics, evaluate trade-offs, create novel connections{% endif %}">
+            Level {{ difficulty_level }}
         </span>
     </div>
     <div class="chat-messages" id="chat-messages">
@@ -50,21 +52,22 @@
     </div>
     <div class="chat-input-area">
         <form id="chat-form" class="chat-form">
-            <input type="text" id="chat-input" class="input chat-input-field"
-                   placeholder="Type your answer..." autocomplete="off" autofocus>
+            <div class="chat-input-wrap">
+                <textarea id="chat-input" class="input chat-input-field"
+                          placeholder="Type your answer..." rows="1" autocomplete="off" autofocus></textarea>
+                <button type="submit" class="btn btn-primary chat-send-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                </button>
+            </div>
             <select id="chat-mode" class="input chat-mode-select" title="Response mode">
                 <option value="auto">Auto</option>
                 <option value="direct">Direct Answer</option>
                 <option value="retrieval">Retrieval Question</option>
                 <option value="hints">Progressive Hints</option>
             </select>
-            <button type="submit" class="btn btn-primary chat-send-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-                Send
-            </button>
         </form>
     </div>
 </div>

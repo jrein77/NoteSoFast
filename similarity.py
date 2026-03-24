@@ -195,6 +195,98 @@ def find_similar_pairs(notes_dict, threshold=0.15):
 
 
 # ---------------------------------------------------------------------------
+# Keyword extraction for redaction (offline, no API calls)
+# ---------------------------------------------------------------------------
+
+def extract_redaction_targets(text, notes_dict=None, max_keywords=30, ratio=0.35):
+    """Extract words and patterns to redact from text.
+
+    Combines TF-IDF keyword extraction with pattern-based detection of
+    names (capitalized words), numbers, percentages, and years.
+
+    Args:
+        text: The text to extract redaction targets from
+        notes_dict: Optional dict of all notes for corpus-level IDF
+        max_keywords: Hard cap on TF-IDF keywords
+        ratio: Maximum fraction of content words from TF-IDF (default 35%)
+
+    Returns a dict with:
+        - keywords: list of lowercase TF-IDF keyword strings
+        - patterns: list of regex pattern strings to also redact
+    """
+    keywords = set()
+    patterns = []
+
+    if not text.strip():
+        return {"keywords": [], "patterns": []}
+
+    # --- TF-IDF keywords ---
+    if notes_dict and len(notes_dict) > 1:
+        documents = [("target", text)]
+        for nid, n in notes_dict.items():
+            documents.append((nid, n.get("title", "") + " " + n.get("content", "")))
+        tfidf = compute_tfidf(documents)
+        target_vec = tfidf.get("target", {})
+    else:
+        tokens = tokenize(text)
+        if not tokens:
+            target_vec = {}
+        else:
+            tf = Counter(tokens)
+            total = len(tokens)
+            target_vec = {w: count / total for w, count in tf.items()}
+
+    if target_vec:
+        ranked = sorted(target_vec.items(), key=lambda x: -x[1])
+        content_tokens = tokenize(text)
+        unique_count = len(set(content_tokens))
+        limit = min(max_keywords, max(3, int(unique_count * ratio)))
+
+        for word, score in ranked:
+            if len(word) < 3:
+                continue
+            keywords.add(word)
+            if len(keywords) >= limit:
+                break
+
+    # --- Pattern-based: proper nouns / names ---
+    # Capitalized words not at sentence start, multi-word names, abbreviations
+    # Find capitalized words (excluding sentence starters)
+    proper_nouns = set()
+    lines = text.replace("\n", ". ").split(". ")
+    for line in lines:
+        words = line.split()
+        # Skip first word (sentence start); check remaining for capitalization
+        for w in words[1:]:
+            clean = re.sub(r"[^a-zA-Z]", "", w)
+            if clean and clean[0].isupper() and len(clean) >= 2:
+                proper_nouns.add(clean)
+    # Also catch abbreviations like BKT, RNN, FAISS, SM-2
+    abbreviations = re.findall(r"\b[A-Z]{2,}(?:-\d+)?\b", text)
+    for abbr in abbreviations:
+        proper_nouns.add(abbr)
+
+    # --- Pattern-based: numbers, percentages, years ---
+    # Percentages like ~80%, 0.95, ~50%
+    patterns.append(r"~?\d+(?:\.\d+)?%")
+    # Years in parentheses like (2020), (2025)
+    patterns.append(r"\(\d{4}\)")
+    # Standalone years
+    patterns.append(r"\b(?:19|20)\d{2}\b")
+    # Numbers with decimals
+    patterns.append(r"\b\d+(?:\.\d+)?\b")
+
+    # Add proper nouns as exact-match patterns (case-sensitive)
+    for pn in proper_nouns:
+        patterns.append(r"\b" + re.escape(pn) + r"\b")
+
+    return {
+        "keywords": sorted(keywords),
+        "patterns": patterns,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Paraphrase vs. verbatim detection
 # ---------------------------------------------------------------------------
 
