@@ -7,15 +7,18 @@ from datetime import datetime
 import uuid
 import json
 
-from similarity import find_similar_pairs
+from similarity import find_similar_pairs, compute_text_overlap
 from rag import RAGIndex
-from llm import generate_rag_response, generate_chat_response, evaluate_response
+from llm import (
+    generate_rag_response, generate_chat_response,
+    evaluate_response, evaluate_generation,
+)
 from knowledge_trace import (
     get_mastery, apply_time_decay, update_mastery,
     get_recommended_difficulty, get_response_mode, mastery_to_label,
     knowledge_state,
 )
-from question_gen import generate_question
+from question_gen import generate_question, generate_generation_prompt
 
 app = Flask(__name__)
 
@@ -496,26 +499,56 @@ def note_chat(note_id):
         # Retrieve relevant chunks via RAG
         retrieved_chunks = rag_index.query(user_msg, top_k=5)
 
+        # --- Compute text overlap for verbatim detection ---
+        source_text = " ".join(c["text"] for c in retrieved_chunks)
+        overlap_stats = compute_text_overlap(user_msg, source_text) if source_text.strip() else None
+
         # --- Evaluate the user's answer against the last AI question ---
-        eval_result = {"correct": False, "partial": True, "feedback": ""}
+        eval_result = {"correct": False, "partial": True, "verbatim": False, "feedback": "", "overlap": None}
         last_ai_msg = None
+        is_generation_assessment = False
         for msg in reversed(chat_messages[note_id][:-1]):
             if msg["role"] == "ai":
                 last_ai_msg = msg["content"]
+                # Detect if the last AI message was a generation-based prompt
+                is_generation_assessment = msg.get("is_generation", False)
                 break
+
         if last_ai_msg:
-            eval_result = evaluate_response(user_msg, retrieved_chunks, last_ai_msg)
+            if is_generation_assessment:
+                eval_result = evaluate_generation(
+                    user_msg, retrieved_chunks, last_ai_msg, overlap_stats
+                )
+            else:
+                eval_result = evaluate_response(
+                    user_msg, retrieved_chunks, last_ai_msg, overlap_stats
+                )
 
         # --- Update mastery based on evaluation ---
         is_correct = eval_result["correct"]
-        # Partial credit: treat as correct at reduced weight
-        if not is_correct and eval_result["partial"]:
+        is_verbatim = eval_result.get("verbatim", False)
+
+        if is_verbatim:
+            # Verbatim copying: no mastery gain, small penalty
+            update_mastery(note_id, difficulty_level, False)
+        elif not is_correct and eval_result["partial"]:
+            # Partial credit: treat as correct at reduced weight
             update_mastery(note_id, max(1, difficulty_level - 1), True)
         else:
             update_mastery(note_id, difficulty_level, is_correct)
 
         # Sync legacy mastery label on the note
         note["mastery"] = mastery_to_label(kt_state["mastery"])
+
+        # --- Gather related notes for Level 3–4 questions ---
+        related_notes = None
+        if difficulty_level >= 3:
+            # Find notes that share tags with the current note
+            current_tags = set(note.get("tags", []))
+            related_notes = [
+                n for nid, n in notes.items()
+                if nid != note_id and current_tags & set(n.get("tags", []))
+            ][:3]
 
         # --- Generate response ---
         if routed_mode == "direct":
@@ -527,19 +560,53 @@ def note_chat(note_id):
                 chunks=retrieved_chunks,
                 mode="direct",
             )
+            msg_meta = {"role": "ai", "content": ai_response}
         elif routed_mode == "question":
             # Recalculate difficulty after mastery update
             difficulty_level = get_recommended_difficulty(note_id)
-            # Generate the next question (Level 1 or 2)
-            next_question = generate_question(note, retrieved_chunks, difficulty_level)
+
+            # Decide whether to use a generation-based prompt
+            # Use generation assessment ~every 3rd question at level 2+
+            interaction_count = len(kt_state.get("interactions", []))
+            use_generation = (
+                difficulty_level >= 2
+                and interaction_count > 0
+                and interaction_count % 3 == 0
+            )
+
+            if use_generation:
+                next_question = generate_generation_prompt(note, retrieved_chunks)
+            else:
+                # Gather related notes for L3/L4
+                if difficulty_level >= 3 and related_notes is None:
+                    current_tags = set(note.get("tags", []))
+                    related_notes = [
+                        n for nid, n in notes.items()
+                        if nid != note_id and current_tags & set(n.get("tags", []))
+                    ][:3]
+                next_question = generate_question(
+                    note, retrieved_chunks, difficulty_level, related_notes
+                )
+
             # Build a response: feedback on their answer + next question
             feedback = eval_result.get("feedback", "")
+            verbatim_warning = ""
+            if is_verbatim:
+                verbatim_warning = (
+                    " It looks like your answer was copied closely from the source material. "
+                    "Try to rephrase in your own words — that's where real learning happens!"
+                )
+
             if is_correct:
-                ai_response = f"That's right! {feedback}\n\nHere's your next question:\n\n{next_question}"
+                ai_response = f"That's right! {feedback}{verbatim_warning}\n\nHere's your next question:\n\n{next_question}"
+            elif is_verbatim:
+                ai_response = f"{feedback}{verbatim_warning}\n\nLet's try again:\n\n{next_question}"
             elif eval_result["partial"]:
-                ai_response = f"You're on the right track. {feedback}\n\nLet's try another one:\n\n{next_question}"
+                ai_response = f"You're on the right track. {feedback}{verbatim_warning}\n\nLet's try another one:\n\n{next_question}"
             else:
                 ai_response = f"Not quite. {feedback}\n\nLet's try this:\n\n{next_question}"
+
+            msg_meta = {"role": "ai", "content": ai_response, "is_generation": use_generation}
         else:
             # Hints or other modes: pass through to chat LLM
             ai_response = generate_chat_response(
@@ -549,8 +616,9 @@ def note_chat(note_id):
                 chunks=retrieved_chunks,
                 mode=routed_mode,
             )
+            msg_meta = {"role": "ai", "content": ai_response}
 
-        chat_messages[note_id].append({"role": "ai", "content": ai_response})
+        chat_messages[note_id].append(msg_meta)
 
         return jsonify({
             "response": ai_response,
@@ -560,10 +628,17 @@ def note_chat(note_id):
             "evaluation": {
                 "correct": eval_result["correct"],
                 "partial": eval_result["partial"],
+                "verbatim": eval_result.get("verbatim", False),
             },
         })
 
     # GET: render the chat page with initial AI question
+    LEVEL_LABELS = {
+        1: "Level 1 (cued recall)",
+        2: "Level 2 (free recall)",
+        3: "Level 3 (application)",
+        4: "Level 4 (synthesis)",
+    }
     if note_id not in chat_messages:
         # Apply time decay for returning users
         apply_time_decay(note_id)
@@ -571,9 +646,19 @@ def note_chat(note_id):
         difficulty_level = get_recommended_difficulty(note_id)
         # Retrieve chunks for question generation
         retrieved_chunks = rag_index.query(note["title"], top_k=5)
+        # Gather related notes for L3/L4
+        related_notes = None
+        if difficulty_level >= 3:
+            current_tags = set(note.get("tags", []))
+            related_notes = [
+                n for nid, n in notes.items()
+                if nid != note_id and current_tags & set(n.get("tags", []))
+            ][:3]
         # Generate an adaptive initial question
-        initial_question = generate_question(note, retrieved_chunks, difficulty_level)
-        level_label = "Level 1 (cued recall)" if difficulty_level <= 1 else "Level 2 (free recall)"
+        initial_question = generate_question(
+            note, retrieved_chunks, difficulty_level, related_notes
+        )
+        level_label = LEVEL_LABELS.get(difficulty_level, f"Level {difficulty_level}")
         initial_msg = f"Let's test your knowledge of '{note['title']}' — {level_label}.\n\n{initial_question}"
         chat_messages[note_id] = [{"role": "ai", "content": initial_msg}]
 

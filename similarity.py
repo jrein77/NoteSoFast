@@ -192,3 +192,107 @@ def find_similar_pairs(notes_dict, threshold=0.15):
                 pairs.append((ids[i], ids[j], sim))
 
     return sorted(pairs, key=lambda x: -x[2])
+
+
+# ---------------------------------------------------------------------------
+# Paraphrase vs. verbatim detection
+# ---------------------------------------------------------------------------
+
+def _ngrams(tokens, n):
+    """Generate n-grams from a token list."""
+    return [tuple(tokens[i : i + n]) for i in range(len(tokens) - n + 1)]
+
+
+def compute_text_overlap(response_text, source_text):
+    """Compute overlap metrics between a user response and source material.
+
+    Returns a dict with:
+        - token_overlap: Jaccard similarity of unique tokens
+        - bigram_overlap: Jaccard similarity of bigrams
+        - trigram_overlap: Jaccard similarity of trigrams
+        - longest_common_seq: length of longest common contiguous word sequence
+        - verbatim_ratio: proportion of response tokens appearing in a contiguous
+          source span (sliding window match)
+        - is_verbatim: True if the response appears to be copied verbatim
+        - is_paraphrase: True if substantial semantic overlap with low verbatim ratio
+    """
+    resp_tokens = tokenize(response_text)
+    src_tokens = tokenize(source_text)
+
+    if not resp_tokens or not src_tokens:
+        return {
+            "token_overlap": 0.0,
+            "bigram_overlap": 0.0,
+            "trigram_overlap": 0.0,
+            "longest_common_seq": 0,
+            "verbatim_ratio": 0.0,
+            "is_verbatim": False,
+            "is_paraphrase": False,
+        }
+
+    # Jaccard similarity on unique tokens
+    resp_set = set(resp_tokens)
+    src_set = set(src_tokens)
+    union = resp_set | src_set
+    token_overlap = len(resp_set & src_set) / len(union) if union else 0.0
+
+    # Bigram and trigram overlap
+    resp_bi = set(_ngrams(resp_tokens, 2))
+    src_bi = set(_ngrams(src_tokens, 2))
+    bi_union = resp_bi | src_bi
+    bigram_overlap = len(resp_bi & src_bi) / len(bi_union) if bi_union else 0.0
+
+    resp_tri = set(_ngrams(resp_tokens, 3))
+    src_tri = set(_ngrams(src_tokens, 3))
+    tri_union = resp_tri | src_tri
+    trigram_overlap = len(resp_tri & src_tri) / len(tri_union) if tri_union else 0.0
+
+    # Longest common contiguous subsequence
+    longest = 0
+    for i in range(len(resp_tokens)):
+        for j in range(len(src_tokens)):
+            k = 0
+            while (
+                i + k < len(resp_tokens)
+                and j + k < len(src_tokens)
+                and resp_tokens[i + k] == src_tokens[j + k]
+            ):
+                k += 1
+            longest = max(longest, k)
+
+    # Verbatim ratio: what fraction of response tokens appear in any contiguous
+    # window of the source of the same length
+    window_size = len(resp_tokens)
+    best_window_match = 0.0
+    if window_size <= len(src_tokens):
+        for start in range(len(src_tokens) - window_size + 1):
+            window = src_tokens[start : start + window_size]
+            matches = sum(1 for a, b in zip(resp_tokens, window) if a == b)
+            ratio = matches / window_size
+            best_window_match = max(best_window_match, ratio)
+    else:
+        # Response is longer than source; check how much of source appears
+        best_window_match = longest / len(resp_tokens) if resp_tokens else 0.0
+
+    verbatim_ratio = best_window_match
+
+    # Heuristic thresholds for classification
+    # Verbatim: high trigram overlap AND high verbatim ratio
+    is_verbatim = trigram_overlap > 0.5 or verbatim_ratio > 0.6 or longest >= 8
+    # Paraphrase: moderate token overlap but low trigram/verbatim
+    is_paraphrase = (
+        token_overlap > 0.2
+        and trigram_overlap < 0.35
+        and verbatim_ratio < 0.5
+        and not is_verbatim
+    )
+
+    return {
+        "token_overlap": round(token_overlap, 4),
+        "bigram_overlap": round(bigram_overlap, 4),
+        "trigram_overlap": round(trigram_overlap, 4),
+        "longest_common_seq": longest,
+        "verbatim_ratio": round(verbatim_ratio, 4),
+        "is_verbatim": is_verbatim,
+        "is_paraphrase": is_paraphrase,
+    }

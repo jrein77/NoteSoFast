@@ -26,6 +26,19 @@
 
 {% block content %}
 <div class="chat-container">
+    <div class="chat-status-bar">
+        <span id="mastery-indicator" class="mastery-indicator mastery-indicator--{{ note.mastery }}">
+            {{ (mastery_value * 100)|round|int }}% — {{ note.mastery }}
+        </span>
+        <span id="difficulty-indicator" class="difficulty-indicator">
+            {% if difficulty_level == 1 %}Level 1 (cued recall)
+            {% elif difficulty_level == 2 %}Level 2 (free recall)
+            {% elif difficulty_level == 3 %}Level 3 (application)
+            {% elif difficulty_level == 4 %}Level 4 (synthesis)
+            {% else %}Level {{ difficulty_level }}
+            {% endif %}
+        </span>
+    </div>
     <div class="chat-messages" id="chat-messages">
         {% for msg in messages %}
         <div class="chat-message chat-message--{{ msg.role }}">

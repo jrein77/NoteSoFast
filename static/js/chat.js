@@ -40,6 +40,15 @@ document.addEventListener('DOMContentLoaded', function () {
             thinkingDiv.remove();
             const data = await response.json();
             appendMessage('ai', data.response);
+
+            // Update mastery and difficulty indicators if present
+            if (data.mastery_value !== undefined) {
+                updateMasteryDisplay(data.mastery, data.mastery_value, data.difficulty_level);
+            }
+            // Show verbatim warning badge if detected
+            if (data.evaluation && data.evaluation.verbatim) {
+                showVerbatimBadge();
+            }
         } catch (err) {
             thinkingDiv.remove();
             appendMessage('ai', 'Sorry, something went wrong. Please try again.');
@@ -57,5 +66,36 @@ document.addEventListener('DOMContentLoaded', function () {
         div.appendChild(bubble);
         messagesContainer.appendChild(div);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    const LEVEL_LABELS = {
+        1: 'Level 1 (cued recall)',
+        2: 'Level 2 (free recall)',
+        3: 'Level 3 (application)',
+        4: 'Level 4 (synthesis)',
+    };
+
+    function updateMasteryDisplay(masteryLabel, masteryValue, difficultyLevel) {
+        const masteryEl = document.getElementById('mastery-indicator');
+        if (masteryEl) {
+            masteryEl.textContent = (masteryValue * 100).toFixed(0) + '% — ' + masteryLabel;
+            masteryEl.className = 'mastery-indicator mastery-indicator--' + masteryLabel;
+        }
+        const levelEl = document.getElementById('difficulty-indicator');
+        if (levelEl) {
+            levelEl.textContent = LEVEL_LABELS[difficultyLevel] || ('Level ' + difficultyLevel);
+        }
+    }
+
+    function showVerbatimBadge() {
+        // Briefly flash a warning on the last AI bubble
+        const bubbles = messagesContainer.querySelectorAll('.chat-bubble--ai');
+        const lastBubble = bubbles[bubbles.length - 1];
+        if (lastBubble) {
+            const badge = document.createElement('span');
+            badge.className = 'verbatim-badge';
+            badge.textContent = 'Verbatim detected — try your own words';
+            lastBubble.prepend(badge);
+        }
     }
 });
