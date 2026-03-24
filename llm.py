@@ -200,3 +200,77 @@ Tags: {tag_str}
         return response.content[0].text
     except Exception as e:
         return f"Error generating response: {str(e)}"
+
+
+# ---------------------------------------------------------------------------
+# Answer evaluation: grade user responses for knowledge tracing
+# ---------------------------------------------------------------------------
+
+EVAL_SYSTEM_PROMPT = """You are an answer evaluator for an adaptive tutoring system. \
+Your job is to assess whether a student's answer demonstrates genuine understanding \
+of the source material.
+
+You must distinguish between:
+- Correct understanding (explained in their own words)
+- Exact copying (memorized verbatim without understanding)
+- Partial understanding (some concepts correct, gaps remain)
+- Incorrect (wrong or irrelevant answer)
+
+Respond in EXACTLY this JSON format, no other text:
+{"correct": true/false, "partial": true/false, "feedback": "brief feedback"}
+
+Rules for "correct":
+- true if the answer captures the key ideas, even if wording differs
+- false if the answer is wrong, too vague, or copied verbatim without elaboration
+For "partial":
+- true if some parts are right but important pieces are missing
+- false otherwise"""
+
+
+def evaluate_response(user_answer, source_chunks, question):
+    """Evaluate a user's answer against source material.
+
+    Args:
+        user_answer: The user's response text
+        source_chunks: List of {text, note_id, note_title, score} from RAG
+        question: The question that was asked
+
+    Returns:
+        Dict with keys: correct (bool), partial (bool), feedback (str)
+    """
+    import json as _json
+
+    client = _get_client()
+    if client is None:
+        return {"correct": True, "partial": False, "feedback": ""}
+
+    context = _format_chunks(source_chunks)
+
+    prompt = f"""## Question Asked
+{question}
+
+## Student's Answer
+{user_answer}
+
+## Source Material (ground truth)
+{context}
+
+Evaluate the student's answer. Respond in the required JSON format."""
+
+    try:
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=256,
+            system=EVAL_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = response.content[0].text.strip()
+        result = _json.loads(text)
+        return {
+            "correct": bool(result.get("correct", False)),
+            "partial": bool(result.get("partial", False)),
+            "feedback": str(result.get("feedback", "")),
+        }
+    except Exception:
+        # Fallback: assume partial correctness to avoid penalizing on eval errors
+        return {"correct": False, "partial": True, "feedback": ""}

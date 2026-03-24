@@ -2,30 +2,127 @@
 Offline TF-IDF cosine similarity engine for note recommendations.
 Pure Python stdlib — no external dependencies.
 """
+
 import re
 import math
 from collections import Counter
 
 
-STOPWORDS = frozenset({
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'shall', 'can', 'to', 'of', 'in', 'for',
-    'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during',
-    'before', 'after', 'and', 'but', 'or', 'nor', 'not', 'so', 'yet',
-    'both', 'either', 'neither', 'each', 'every', 'all', 'any', 'few',
-    'more', 'most', 'other', 'some', 'such', 'no', 'only', 'own', 'same',
-    'than', 'too', 'very', 'just', 'because', 'this', 'that', 'these',
-    'those', 'it', 'its', 'he', 'she', 'they', 'them', 'their', 'we',
-    'our', 'you', 'your', 'what', 'which', 'who', 'whom', 'how', 'when',
-    'where', 'why', 'if', 'then', 'else', 'about', 'up', 'out', 'off',
-    'over', 'under', 'again', 'also', 'using', 'used', 'use', 'based',
-})
+STOPWORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "and",
+        "but",
+        "or",
+        "nor",
+        "not",
+        "so",
+        "yet",
+        "both",
+        "either",
+        "neither",
+        "each",
+        "every",
+        "all",
+        "any",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "only",
+        "own",
+        "same",
+        "than",
+        "too",
+        "very",
+        "just",
+        "because",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "he",
+        "she",
+        "they",
+        "them",
+        "their",
+        "we",
+        "our",
+        "you",
+        "your",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "how",
+        "when",
+        "where",
+        "why",
+        "if",
+        "then",
+        "else",
+        "about",
+        "up",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "also",
+        "using",
+        "used",
+        "use",
+        "based",
+    }
+)
 
 
 def tokenize(text):
     """Simple word tokenizer: lowercase, split on non-alpha, remove stopwords."""
-    words = re.findall(r'[a-z]+', text.lower())
+    words = re.findall(r"[a-z]+", text.lower())
     return [w for w in words if w not in STOPWORDS and len(w) > 1]
 
 
@@ -70,8 +167,8 @@ def cosine_sim(vec_a, vec_b):
     if not common:
         return 0.0
     dot = sum(vec_a[k] * vec_b[k] for k in common)
-    mag_a = math.sqrt(sum(v ** 2 for v in vec_a.values()))
-    mag_b = math.sqrt(sum(v ** 2 for v in vec_b.values()))
+    mag_a = math.sqrt(sum(v**2 for v in vec_a.values()))
+    mag_b = math.sqrt(sum(v**2 for v in vec_b.values()))
     if mag_a == 0 or mag_b == 0:
         return 0.0
     return dot / (mag_a * mag_b)

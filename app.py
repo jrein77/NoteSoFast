@@ -9,7 +9,13 @@ import json
 
 from similarity import find_similar_pairs
 from rag import RAGIndex
-from llm import generate_rag_response, generate_chat_response
+from llm import generate_rag_response, generate_chat_response, evaluate_response
+from knowledge_trace import (
+    get_mastery, apply_time_decay, update_mastery,
+    get_recommended_difficulty, get_response_mode, mastery_to_label,
+    knowledge_state,
+)
+from question_gen import generate_question
 
 app = Flask(__name__)
 
@@ -446,7 +452,12 @@ def note_edit(note_id):
 def note_delete(note_id):
     notes.pop(note_id, None)
     chat_messages.pop(note_id, None)
+    knowledge_state.pop(note_id, None)
     rag_index.remove_note(note_id)
+    # Rebuild tags set from remaining notes
+    tags.clear()
+    for n in notes.values():
+        tags.update(n.get("tags", []))
     return redirect(url_for("notes_list"))
 
 
@@ -468,57 +479,112 @@ def note_chat(note_id):
 
         chat_messages[note_id].append({"role": "user", "content": user_msg})
 
-        msg_count = len([m for m in chat_messages[note_id] if m["role"] == "user"])
+        # --- Knowledge tracing: apply time decay on returning sessions ---
+        apply_time_decay(note_id)
+        kt_state = get_mastery(note_id)
+
+        # --- Retrieval decision router ---
+        # In "auto" mode, the router decides; otherwise respect the user's choice
+        if mode == "auto":
+            routed_mode = get_response_mode(note_id)
+        else:
+            routed_mode = mode
+
+        # Determine difficulty level for question generation
+        difficulty_level = get_recommended_difficulty(note_id)
 
         # Retrieve relevant chunks via RAG
         retrieved_chunks = rag_index.query(user_msg, top_k=5)
 
-        # Generate response via LLM
-        ai_response = generate_chat_response(
-            note=note,
-            history=chat_messages[note_id][:-1],  # History before this message
-            user_msg=user_msg,
-            chunks=retrieved_chunks,
-            mode=mode,
-        )
+        # --- Evaluate the user's answer against the last AI question ---
+        eval_result = {"correct": False, "partial": True, "feedback": ""}
+        last_ai_msg = None
+        for msg in reversed(chat_messages[note_id][:-1]):
+            if msg["role"] == "ai":
+                last_ai_msg = msg["content"]
+                break
+        if last_ai_msg:
+            eval_result = evaluate_response(user_msg, retrieved_chunks, last_ai_msg)
 
-        # Update mastery based on interaction count
-        if msg_count >= 3 and note["mastery"] != "green":
-            note["mastery"] = "green"
-        elif msg_count >= 2 and note["mastery"] in ("not_started", "red"):
-            note["mastery"] = "yellow"
-        elif msg_count >= 1 and note["mastery"] == "not_started":
-            note["mastery"] = "yellow"
+        # --- Update mastery based on evaluation ---
+        is_correct = eval_result["correct"]
+        # Partial credit: treat as correct at reduced weight
+        if not is_correct and eval_result["partial"]:
+            update_mastery(note_id, max(1, difficulty_level - 1), True)
+        else:
+            update_mastery(note_id, difficulty_level, is_correct)
+
+        # Sync legacy mastery label on the note
+        note["mastery"] = mastery_to_label(kt_state["mastery"])
+
+        # --- Generate response ---
+        if routed_mode == "direct":
+            # Mastered topic: provide direct RAG answer
+            ai_response = generate_chat_response(
+                note=note,
+                history=chat_messages[note_id][:-1],
+                user_msg=user_msg,
+                chunks=retrieved_chunks,
+                mode="direct",
+            )
+        elif routed_mode == "question":
+            # Recalculate difficulty after mastery update
+            difficulty_level = get_recommended_difficulty(note_id)
+            # Generate the next question (Level 1 or 2)
+            next_question = generate_question(note, retrieved_chunks, difficulty_level)
+            # Build a response: feedback on their answer + next question
+            feedback = eval_result.get("feedback", "")
+            if is_correct:
+                ai_response = f"That's right! {feedback}\n\nHere's your next question:\n\n{next_question}"
+            elif eval_result["partial"]:
+                ai_response = f"You're on the right track. {feedback}\n\nLet's try another one:\n\n{next_question}"
+            else:
+                ai_response = f"Not quite. {feedback}\n\nLet's try this:\n\n{next_question}"
+        else:
+            # Hints or other modes: pass through to chat LLM
+            ai_response = generate_chat_response(
+                note=note,
+                history=chat_messages[note_id][:-1],
+                user_msg=user_msg,
+                chunks=retrieved_chunks,
+                mode=routed_mode,
+            )
 
         chat_messages[note_id].append({"role": "ai", "content": ai_response})
 
-        return jsonify({"response": ai_response, "mastery": note["mastery"]})
+        return jsonify({
+            "response": ai_response,
+            "mastery": note["mastery"],
+            "mastery_value": round(kt_state["mastery"], 3),
+            "difficulty_level": difficulty_level,
+            "evaluation": {
+                "correct": eval_result["correct"],
+                "partial": eval_result["partial"],
+            },
+        })
 
     # GET: render the chat page with initial AI question
-    difficulty = request.args.get("difficulty", "medium")
     if note_id not in chat_messages:
-        if difficulty == "easy":
-            initial_msg = (
-                f"Let's do a quick warm-up on '{note['title']}'. "
-                f"Can you tell me what this topic is generally about in a sentence or two?"
-            )
-        elif difficulty == "hard":
-            initial_msg = (
-                f"Let's challenge your understanding of '{note['title']}'. "
-                f"Explain the key concepts, how they relate to each other, "
-                f"and provide a real-world application — all from memory."
-            )
-        else:
-            initial_msg = (
-                f"Let's test your knowledge of '{note['title']}'. "
-                f"In your own words, what are the main concepts and takeaways from this topic?"
-            )
+        # Apply time decay for returning users
+        apply_time_decay(note_id)
+        # Use knowledge trace to determine starting difficulty
+        difficulty_level = get_recommended_difficulty(note_id)
+        # Retrieve chunks for question generation
+        retrieved_chunks = rag_index.query(note["title"], top_k=5)
+        # Generate an adaptive initial question
+        initial_question = generate_question(note, retrieved_chunks, difficulty_level)
+        level_label = "Level 1 (cued recall)" if difficulty_level <= 1 else "Level 2 (free recall)"
+        initial_msg = f"Let's test your knowledge of '{note['title']}' — {level_label}.\n\n{initial_question}"
         chat_messages[note_id] = [{"role": "ai", "content": initial_msg}]
+
+    kt_state = get_mastery(note_id)
 
     return render_template(
         "chat.html",
         note=note,
         messages=chat_messages[note_id],
+        mastery_value=round(kt_state["mastery"], 3),
+        difficulty_level=get_recommended_difficulty(note_id),
     )
 
 

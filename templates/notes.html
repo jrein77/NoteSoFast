@@ -105,6 +105,14 @@
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
                 </a>
+                <form action="{{ url_for('note_delete', note_id=note.id) }}" method="post" class="inline-form" onclick="event.stopPropagation();" onsubmit="return confirm('Delete this note?')">
+                    <button type="submit" class="note-card-delete-btn" title="Delete note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </button>
+                </form>
             </div>
         </div>
     </div>

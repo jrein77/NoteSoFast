@@ -108,6 +108,21 @@
 
         <div class="toolbar-spacer"></div>
 
+        {% if note %}
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-action-btn toolbar-action-btn--danger" title="Delete"
+                    onclick="if(confirm('Delete this note?')){var f=document.createElement('form');f.method='post';f.action='{{ url_for('note_delete', note_id=note.id) }}';document.body.appendChild(f);f.submit();}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                <span>Delete</span>
+            </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+        {% endif %}
+
         <div class="toolbar-group toolbar-actions">
             <a href="{{ url_for('notes_list') }}" class="btn btn-ghost btn-sm">Cancel</a>
             <button type="submit" class="btn btn-primary btn-sm">
