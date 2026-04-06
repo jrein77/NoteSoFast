@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 
 {% block title %}NoteSoFast - Notes{% endblock %}
-{% block page_title %}Notes{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-item breadcrumb-item--active">Notes</span>
+{% endblock %}
 
 {% block page_actions %}
 <div class="btn-group">

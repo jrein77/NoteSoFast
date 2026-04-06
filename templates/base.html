@@ -32,7 +32,7 @@
                     <line x1="6" y1="17" x2="10" y2="14"/>
                     <line x1="18" y1="17" x2="14" y2="14"/>
                 </svg>
-                <span>Knowledge Graph</span>
+                <span>Jake's Mind</span>
             </a>
 
             <a href="{{ url_for('notes_list') }}" class="nav-item {% if request.endpoint in ['notes_list', 'note_detail', 'note_edit', 'note_create'] %}active{% endif %}">
@@ -71,16 +71,14 @@
                         <line x1="3" y1="18" x2="21" y2="18"/>
                     </svg>
                 </button>
-                <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                    {% block breadcrumb %}
+                    <a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
+                    {% endblock %}
+                </nav>
             </div>
             <div class="page-header-right">
                 <div class="page-actions">{% block page_actions %}{% endblock %}</div>
-                <button class="header-profile-btn" title="Profile">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                    </svg>
-                </button>
             </div>
         </header>
 

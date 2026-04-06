@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 
 {% block title %}NoteSoFast - Query{% endblock %}
-{% block page_title %}Query Your Knowledge{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-item breadcrumb-item--active">Query</span>
+{% endblock %}
 
 {% block content %}
 <div class="query-layout">
