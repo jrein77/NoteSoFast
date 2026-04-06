@@ -16,14 +16,22 @@ from llm import (
 from knowledge_trace import (
     get_mastery, apply_time_decay, update_mastery,
     get_recommended_difficulty, get_response_mode, mastery_to_label,
-    knowledge_state,
+    knowledge_state, get_decayed_mastery,
 )
 from question_gen import generate_question, generate_generation_prompt
+from hint_generator import (
+    get_hint_session, create_hint_session, clear_hint_session,
+    generate_next_hint, evaluate_hint_response,
+)
+from cognitive_debt import CognitiveDebtTracker
 
 app = Flask(__name__)
 
 # RAG index (initialized after seed notes are loaded)
 rag_index = RAGIndex()
+
+# Cognitive debt tracker
+debt_tracker = CognitiveDebtTracker()
 
 # In-memory storage (will be replaced with a database later)
 notes = {}
@@ -212,10 +220,15 @@ def seed_sample_notes():
 seed_sample_notes()
 rag_index.rebuild(notes)
 
+# Register seed notes with cognitive debt tracker
+for nid, n in notes.items():
+    debt_tracker.register_node(nid, n.get("tags", []))
+
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    debt_count = debt_tracker.get_debt_count(notes)
+    return render_template("index.html", debt_count=debt_count)
 
 
 @app.route("/api/graph-data")
@@ -223,6 +236,9 @@ def graph_data():
     """Return nodes, edges, potential connections, and clusters for the knowledge graph."""
     node_list = []
     for note in notes.values():
+        # Use decayed mastery for real-time graph coloring (Feature 4)
+        decayed = get_decayed_mastery(note["id"])
+        note["mastery"] = mastery_to_label(decayed)
         node_list.append({
             "id": note["id"],
             "title": note["title"],
@@ -353,6 +369,7 @@ def note_create():
         }
         tags.update(note_tags)
         rag_index.add_note(notes[note_id])
+        debt_tracker.register_node(note_id, note_tags)
         return redirect(url_for("note_edit", note_id=note_id))
     return render_template("note_edit.html", note=None)
 
@@ -417,6 +434,10 @@ def notes_upload():
             except Exception:
                 pass
     rag_index.rebuild(notes)
+    # Register all uploaded notes with cognitive debt tracker
+    for nid, n in notes.items():
+        if not debt_tracker.is_registered(nid):
+            debt_tracker.register_node(nid, n.get("tags", []))
     return redirect(url_for("notes_list"))
 
 
@@ -468,6 +489,7 @@ def note_delete(note_id):
     chat_messages.pop(note_id, None)
     knowledge_state.pop(note_id, None)
     rag_index.remove_note(note_id)
+    debt_tracker.remove_node(note_id)
     # Rebuild tags set from remaining notes
     tags.clear()
     for n in notes.values():
@@ -563,8 +585,15 @@ def note_chat(note_id):
         else:
             update_mastery(note_id, difficulty_level, is_correct)
 
-        # Sync legacy mastery label on the note
-        note["mastery"] = mastery_to_label(kt_state["mastery"])
+        # Record engagement for cognitive debt tracking
+        debt_tracker.record_engagement(note_id)
+
+        # Clear any active hint session for this question (user answered)
+        question_idx = len([m for m in chat_messages[note_id] if m["role"] == "ai"]) - 1
+        clear_hint_session(note_id, question_idx)
+
+        # Sync legacy mastery label on the note using decayed mastery
+        note["mastery"] = mastery_to_label(get_decayed_mastery(note_id))
 
         # --- Gather related notes for Level 3–4 questions ---
         related_notes = None
@@ -649,7 +678,7 @@ def note_chat(note_id):
         return jsonify({
             "response": ai_response,
             "mastery": note["mastery"],
-            "mastery_value": round(kt_state["mastery"], 3),
+            "mastery_value": round(get_decayed_mastery(note_id), 3),
             "difficulty_level": difficulty_level,
             "evaluation": {
                 "correct": eval_result["correct"],
@@ -689,14 +718,153 @@ def note_chat(note_id):
         chat_messages[note_id] = [{"role": "ai", "content": initial_msg}]
 
     kt_state = get_mastery(note_id)
+    decayed = get_decayed_mastery(note_id)
+    note["mastery"] = mastery_to_label(decayed)
 
     return render_template(
         "chat.html",
         note=note,
         messages=chat_messages[note_id],
-        mastery_value=round(kt_state["mastery"], 3),
+        mastery_value=round(decayed, 3),
         difficulty_level=get_recommended_difficulty(note_id),
     )
+
+
+@app.route("/api/hint", methods=["POST"])
+def api_hint():
+    """Generate the next progressive hint for an active question.
+
+    Accepts JSON: { note_id, question_index (optional), hint_response (optional) }
+    Returns JSON: { level, text, is_question, is_reveal, mastery_recovery (optional) }
+    """
+    data = request.get_json()
+    note_id = data.get("note_id")
+    hint_response = data.get("hint_response", "").strip()
+
+    if not note_id or note_id not in notes:
+        return jsonify({"error": "Invalid note_id"}), 400
+
+    note = notes[note_id]
+
+    # Determine question index (current AI question count)
+    msgs = chat_messages.get(note_id, [])
+    question_index = data.get("question_index")
+    if question_index is None:
+        question_index = len([m for m in msgs if m["role"] == "ai"]) - 1
+
+    # Get or create hint session
+    hint_state = get_hint_session(note_id, question_index)
+
+    if hint_state is None:
+        # Find the last AI question
+        last_question = ""
+        for msg in reversed(msgs):
+            if msg["role"] == "ai":
+                last_question = msg["content"]
+                break
+
+        if not last_question:
+            return jsonify({"error": "No active question"}), 400
+
+        # Retrieve context
+        retrieved_chunks = rag_index.query(note["title"], top_k=5)
+        kt_state = get_mastery(note_id)
+        mastery = get_decayed_mastery(note_id)
+
+        # Gather related notes for graph context
+        current_tags = set(note.get("tags", []))
+        related_notes = [
+            n for nid, n in notes.items()
+            if nid != note_id and current_tags & set(n.get("tags", []))
+        ][:3]
+
+        hint_state = create_hint_session(
+            note_id, question_index, note, last_question,
+            retrieved_chunks, mastery, related_notes,
+        )
+
+    # If user responded to a previous hint question, evaluate it
+    mastery_recovery = None
+    if hint_response and hint_state.hints_given:
+        last_hint = hint_state.hints_given[-1]
+        if last_hint["level"] < 4:  # Only evaluate responses to Socratic hints
+            eval_result = evaluate_hint_response(
+                hint_state, hint_response, last_hint["level"]
+            )
+            mastery_recovery = eval_result
+            # Credit partial mastery recovery if response was good
+            if eval_result["above_threshold"]:
+                update_mastery(note_id, max(1, last_hint["level"]), True)
+                note["mastery"] = mastery_to_label(get_decayed_mastery(note_id))
+
+    # Generate next hint
+    hint = generate_next_hint(hint_state)
+
+    if hint is None:
+        return jsonify({"error": "All hints exhausted", "exhausted": True}), 200
+
+    # If this is the reveal (L4), update mastery downward
+    if hint["is_reveal"]:
+        update_mastery(note_id, 1, False)  # Penalty for needing full reveal
+        note["mastery"] = mastery_to_label(get_decayed_mastery(note_id))
+
+    kt_state = get_mastery(note_id)
+    response = {
+        "level": hint["level"],
+        "text": hint["text"],
+        "is_question": hint["is_question"],
+        "is_reveal": hint["is_reveal"],
+        "hints_remaining": max(0, 4 - hint_state.current_level + 1),
+        "mastery": note["mastery"],
+        "mastery_value": round(get_decayed_mastery(note_id), 3),
+    }
+    if mastery_recovery:
+        response["mastery_recovery"] = mastery_recovery
+
+    return jsonify(response)
+
+
+@app.route("/api/cognitive-debt")
+def api_cognitive_debt():
+    """Return list of unengaged nodes with metadata.
+
+    Returns JSON: { debt_count, nodes: [{note_id, title, tags, hours_since_creation,
+                    engagement_count, child_count}], nudge_message }
+    """
+    debt_nodes = debt_tracker.get_debt_nodes(notes)
+
+    # Rank by graph centrality (nodes connected to many others first)
+    tag_counts = {}
+    for n in notes.values():
+        for t in n.get("tags", []):
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+
+    for node in debt_nodes:
+        note = notes.get(node["note_id"])
+        if note:
+            centrality = sum(tag_counts.get(t, 0) for t in note.get("tags", []))
+            node["centrality"] = centrality
+
+    debt_nodes.sort(key=lambda x: x.get("centrality", 0), reverse=True)
+
+    nudge = None
+    if len(debt_nodes) >= 3:
+        nudge = (
+            f"You've added {len(debt_nodes)} new topics you haven't reviewed yet. "
+            f"Let's make sure they stick — start a quick quiz on your newest notes."
+        )
+    elif debt_nodes:
+        nudge = (
+            f"You have {len(debt_nodes)} unreviewed "
+            f"{'topic' if len(debt_nodes) == 1 else 'topics'}. "
+            f"Want to start a quick quiz?"
+        )
+
+    return jsonify({
+        "debt_count": len(debt_nodes),
+        "nodes": debt_nodes[:20],  # Cap at 20 for display
+        "nudge_message": nudge,
+    })
 
 
 @app.route("/query", methods=["GET", "POST"])

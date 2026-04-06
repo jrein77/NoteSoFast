@@ -23,6 +23,27 @@
 {% block content %}
 <div class="graph-container" id="knowledge-graph">
     <svg id="graph-svg"></svg>
+    <div class="cognitive-debt-widget" id="debt-widget" style="display: none;">
+        <div class="debt-header">
+            <span class="debt-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Cognitive Debt
+                <span class="debt-count-badge" id="debt-count">0</span>
+            </span>
+            <button class="debt-dismiss" id="debt-dismiss" title="Dismiss">&times;</button>
+        </div>
+        <p class="debt-message" id="debt-message"></p>
+        <a class="debt-cta" id="debt-cta" href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Start Quick Quiz
+        </a>
+    </div>
     <div class="graph-zoom-controls">
         <button id="graph-zoom-in" class="graph-zoom-btn" title="Zoom In">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -58,4 +79,42 @@
 
 {% block body_scripts %}
 <script src="{{ url_for('static', filename='js/graph.js') }}"></script>
+<script>
+// Cognitive debt widget
+(async function () {
+    var widget = document.getElementById('debt-widget');
+    var countEl = document.getElementById('debt-count');
+    var messageEl = document.getElementById('debt-message');
+    var ctaEl = document.getElementById('debt-cta');
+    var dismissBtn = document.getElementById('debt-dismiss');
+    if (!widget) return;
+
+    // Check if user dismissed this session
+    if (sessionStorage.getItem('debt-dismissed')) return;
+
+    try {
+        var resp = await fetch('/api/cognitive-debt');
+        var data = await resp.json();
+        if (data.debt_count > 0 && data.nudge_message) {
+            countEl.textContent = data.debt_count;
+            messageEl.textContent = data.nudge_message;
+            widget.style.display = 'block';
+
+            // Link CTA to the first debt node's chat
+            if (data.nodes && data.nodes.length > 0) {
+                ctaEl.href = '/notes/' + data.nodes[0].note_id + '/chat';
+            }
+        }
+    } catch (e) {
+        // Silently fail
+    }
+
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', function () {
+            widget.style.display = 'none';
+            sessionStorage.setItem('debt-dismissed', '1');
+        });
+    }
+})();
+</script>
 {% endblock %}

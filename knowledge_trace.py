@@ -10,7 +10,7 @@ import math
 
 MASTERY_THRESHOLD = 0.95       # Zhang et al., 2025 — BKT mastery threshold
 INITIAL_MASTERY = 0.3          # Prior for uninitialized topics
-FORGETTING_RATE = 0.1          # Exponential decay rate per day
+FORGETTING_RATE = 0.05         # Exponential decay rate per day (DaTaKT-informed)
 FEW_SHOT_WINDOW = 3            # Number of interactions before initialization is complete
 
 # How much each difficulty level moves mastery on correct/incorrect answers
@@ -39,6 +39,25 @@ def get_mastery(note_id):
     if note_id not in knowledge_state:
         knowledge_state[note_id] = _default_state()
     return knowledge_state[note_id]
+
+
+def get_decayed_mastery(note_id):
+    """Return the current mastery with time-based decay applied on-the-fly.
+
+    Uses exponential decay: decayed = INITIAL + (mastery - INITIAL) * e^(-lambda * days)
+    Does NOT mutate the stored state — use this for reads/display.
+    Based on DaTaKT (Huang et al., 2026) time-aware knowledge tracing.
+    """
+    state = get_mastery(note_id)
+    if state["last_session"] is None:
+        return state["mastery"]
+
+    days_elapsed = (datetime.now() - state["last_session"]).total_seconds() / 86400.0
+    if days_elapsed < 0.01:  # Less than ~15 minutes, no decay
+        return state["mastery"]
+
+    decay = math.exp(-FORGETTING_RATE * days_elapsed)
+    return INITIAL_MASTERY + (state["mastery"] - INITIAL_MASTERY) * decay
 
 
 def apply_time_decay(note_id):
@@ -106,17 +125,19 @@ def update_mastery(note_id, difficulty_level, correct, confidence=None):
 
 
 def get_recommended_difficulty(note_id):
-    """Return the recommended difficulty level (1–4) based on mastery and session gap.
+    """Return the recommended difficulty level (1–4) based on decayed mastery and session gap.
 
-    After a long gap (time decay applied), starts easier before ramping up.
-    During normal sessions, difficulty tracks mastery:
+    Uses decayed mastery (on-the-fly) so that topics with time gaps naturally
+    get easier questions (DaTaKT session gap recovery).
+
+    During normal sessions, difficulty tracks decayed mastery:
       mastery < 0.3  → Level 1 (cued recall)
       mastery < 0.6  → Level 2 (free recall)
       mastery < 0.85 → Level 3 (application)
       mastery >= 0.85 → Level 4 (synthesis)
     """
     state = get_mastery(note_id)
-    mastery = state["mastery"]
+    mastery = get_decayed_mastery(note_id)
 
     # If returning after a gap and last interaction was at a higher level,
     # start one level lower (Huang et al., 2026 time-awareness)
@@ -138,15 +159,15 @@ def get_recommended_difficulty(note_id):
 
 
 def get_response_mode(note_id):
-    """Determine the response mode based on mastery state.
+    """Determine the response mode based on decayed mastery state.
 
     Returns:
-        "direct" if mastery >= threshold (user has mastered the topic)
+        "direct" if decayed mastery >= threshold (user has mastered the topic)
         "question" otherwise (challenge with retrieval practice)
     """
-    state = get_mastery(note_id)
+    mastery = get_decayed_mastery(note_id)
 
-    if state["mastery"] >= MASTERY_THRESHOLD:
+    if mastery >= MASTERY_THRESHOLD:
         return "direct"
     return "question"
 
