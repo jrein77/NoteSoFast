@@ -2,7 +2,7 @@
 
 A personal knowledge management tool that introduces desirable difficulties.
 
-CS 6460, Georgia Tech OMSCS. See Catalog.pdf for project details.
+See Catalog.pdf for project details.
 
 ## Setup
 
