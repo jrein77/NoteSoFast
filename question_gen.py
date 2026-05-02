@@ -10,6 +10,7 @@ Levels:
 """
 
 from llm import _get_client, _format_chunks, MODEL, MAX_TOKENS
+import mock_llm
 
 
 QUESTION_SYSTEM_PROMPT = """You are a question generator for NoteSoFast, an adaptive tutoring system. \
@@ -33,10 +34,12 @@ def generate_level1_question(note, chunks):
     """
     client = _get_client()
     if client is None:
-        return (
-            f"Let's start with a warm-up on '{note['title']}'. "
-            f"Can you tell me what this topic is generally about?"
-        )
+        # --- mock-mode branch (was: generic warm-up string) ---
+        # return (
+        #     f"Let's start with a warm-up on '{note['title']}'. "
+        #     f"Can you tell me what this topic is generally about?"
+        # )
+        return mock_llm.mock_level1_question(note, chunks)
 
     context = _format_chunks(chunks)
     tag_str = ", ".join(note.get("tags", []))
@@ -85,10 +88,12 @@ def generate_level2_question(note, chunks):
     """
     client = _get_client()
     if client is None:
-        return (
-            f"In your own words, explain the main concepts from '{note['title']}'. "
-            f"Try to be specific without looking at your notes."
-        )
+        # --- mock-mode branch (was: generic free-recall string) ---
+        # return (
+        #     f"In your own words, explain the main concepts from '{note['title']}'. "
+        #     f"Try to be specific without looking at your notes."
+        # )
+        return mock_llm.mock_level2_question(note, chunks)
 
     context = _format_chunks(chunks)
     tag_str = ", ".join(note.get("tags", []))
@@ -142,10 +147,12 @@ def generate_level3_question(note, chunks, related_notes=None):
     """
     client = _get_client()
     if client is None:
-        return (
-            f"Imagine you're explaining '{note['title']}' to solve a real-world problem. "
-            f"Describe a scenario where these concepts apply and how you'd use them."
-        )
+        # --- mock-mode branch (was: generic application string) ---
+        # return (
+        #     f"Imagine you're explaining '{note['title']}' to solve a real-world problem. "
+        #     f"Describe a scenario where these concepts apply and how you'd use them."
+        # )
+        return mock_llm.mock_level3_question(note, chunks, related_notes)
 
     context = _format_chunks(chunks)
     tag_str = ", ".join(note.get("tags", []))
@@ -209,10 +216,12 @@ def generate_level4_question(note, chunks, related_notes=None):
     """
     client = _get_client()
     if client is None:
-        return (
-            f"Synthesize the key ideas from '{note['title']}' with related concepts "
-            f"you've studied. What new insight emerges from combining them?"
-        )
+        # --- mock-mode branch (was: generic synthesis string) ---
+        # return (
+        #     f"Synthesize the key ideas from '{note['title']}' with related concepts "
+        #     f"you've studied. What new insight emerges from combining them?"
+        # )
+        return mock_llm.mock_level4_question(note, chunks, related_notes)
 
     context = _format_chunks(chunks)
     tag_str = ", ".join(note.get("tags", []))
@@ -282,10 +291,12 @@ def generate_generation_prompt(note, chunks):
     """
     client = _get_client()
     if client is None:
-        return (
-            f"Explain the core ideas from '{note['title']}' in your own words, "
-            f"as if you were teaching someone who has never encountered this topic."
-        )
+        # --- mock-mode branch (was: generic Feynman-prompt string) ---
+        # return (
+        #     f"Explain the core ideas from '{note['title']}' in your own words, "
+        #     f"as if you were teaching someone who has never encountered this topic."
+        # )
+        return mock_llm.mock_generation_prompt(note, chunks)
 
     context = _format_chunks(chunks)
     tag_str = ", ".join(note.get("tags", []))

@@ -24,8 +24,41 @@ from hint_generator import (
     generate_next_hint, evaluate_hint_response,
 )
 from cognitive_debt import CognitiveDebtTracker
+import mock_mode
 
 app = Flask(__name__)
+
+
+@app.context_processor
+def inject_mock_mode():
+    """Make the current mock-mode state available to every template."""
+    return {
+        "mock_mode_active": mock_mode.is_mock(),
+        "mock_has_api_key": mock_mode.has_api_key(),
+    }
+
+
+@app.route("/api/mock-mode", methods=["GET", "POST"])
+def api_mock_mode():
+    """Read or toggle mock mode.
+
+    POST body: {"mock": true|false}. Switching to API mode requires
+    ANTHROPIC_API_KEY to be set in the environment.
+    """
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        wanted = bool(data.get("mock", True))
+        if not wanted and not mock_mode.has_api_key():
+            return jsonify({
+                "error": "ANTHROPIC_API_KEY is not set; cannot switch to API mode.",
+                "mock": True,
+                "has_api_key": False,
+            }), 400
+        mock_mode.set_mock(wanted)
+    return jsonify({
+        "mock": mock_mode.is_mock(),
+        "has_api_key": mock_mode.has_api_key(),
+    })
 
 # RAG index (initialized after seed notes are loaded)
 rag_index = RAGIndex()

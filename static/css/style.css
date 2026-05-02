@@ -150,6 +150,53 @@ a:hover {
     margin-bottom: 14px;
 }
 
+.mock-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-primary-bg);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mock-toggle:hover:not(:disabled) {
+    border-color: var(--color-text-secondary);
+}
+
+.mock-toggle:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.mock-toggle-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d97706; /* amber for demo/mock */
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.18);
+}
+
+.mock-toggle[data-mock="0"] .mock-toggle-dot {
+    background: #16a34a; /* green for live API */
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18);
+}
+
+.mock-toggle-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .sidebar-profile {
     display: flex;
     align-items: center;

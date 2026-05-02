@@ -17,6 +17,7 @@ Mastery-based starting level:
 """
 
 from llm import _get_client, _format_chunks, MODEL, MAX_TOKENS
+import mock_llm
 
 
 # In-memory hint state per active question: { (note_id, question_index): HintState }
@@ -152,7 +153,12 @@ def _generate_socratic_hint(hint_state, level):
     """Generate a Socratic question hint at the given level (1–3)."""
     client = _get_client()
     if client is None:
-        return _fallback_hint(hint_state, level)
+        # --- mock-mode branch (was: _fallback_hint, kept below for reference) ---
+        # return _fallback_hint(hint_state, level)
+        return mock_llm.mock_hint_question(
+            hint_state.note, hint_state.question_text,
+            hint_state.chunks, level, hint_state.related_notes,
+        )
 
     context = _format_chunks(hint_state.chunks)
     graph_context = _build_graph_context(hint_state)
@@ -231,8 +237,12 @@ def _generate_reveal(hint_state):
     """Generate a Level 4 direct reveal with the full answer."""
     client = _get_client()
     if client is None:
-        source_text = " ".join(c["text"] for c in hint_state.chunks)
-        return f"Here's the answer:\n\n{source_text}"
+        # --- mock-mode branch (was: dump retrieved source text verbatim) ---
+        # source_text = " ".join(c["text"] for c in hint_state.chunks)
+        # return f"Here's the answer:\n\n{source_text}"
+        return mock_llm.mock_hint_reveal(
+            hint_state.note, hint_state.question_text, hint_state.chunks
+        )
 
     context = _format_chunks(hint_state.chunks)
 

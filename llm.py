@@ -1,14 +1,27 @@
 """
 LLM integration: Anthropic Claude API for RAG response generation.
+
+Every LLM call respects the mock-mode toggle: when mock mode is on (or no
+API key is configured), _get_client() returns None and the function falls
+through to a placeholder response from mock_llm. See mock_mode.py.
 """
 
 import os
+
+import mock_mode
+import mock_llm
 
 _client = None
 
 
 def _get_client():
-    """Initialize Anthropic client on first use."""
+    """Initialize Anthropic client on first use.
+
+    Returns None when mock mode is enabled, so callers fall through to their
+    mock_llm placeholder branch.
+    """
+    if mock_mode.is_mock():
+        return None
     global _client
     if _client is None:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -72,10 +85,12 @@ def generate_rag_response(query, chunks, mode="direct"):
     """
     client = _get_client()
     if client is None:
-        return (
-            "LLM is not configured. Add your ANTHROPIC_API_KEY to the .env file "
-            "to enable AI-powered responses."
-        )
+        # --- mock-mode branch (was: hard-coded "LLM is not configured" string) ---
+        # return (
+        #     "LLM is not configured. Add your ANTHROPIC_API_KEY to the .env file "
+        #     "to enable AI-powered responses."
+        # )
+        return mock_llm.mock_rag_response(query, chunks, mode)
 
     context = _format_chunks(chunks)
     mode_instruction = QUERY_MODE_INSTRUCTIONS.get(mode, QUERY_MODE_INSTRUCTIONS["direct"])
@@ -155,10 +170,12 @@ def generate_chat_response(note, history, user_msg, chunks, mode="auto"):
     """
     client = _get_client()
     if client is None:
-        return (
-            "LLM is not configured. Add your ANTHROPIC_API_KEY to the .env file "
-            "to enable AI-powered responses."
-        )
+        # --- mock-mode branch (was: hard-coded "LLM is not configured" string) ---
+        # return (
+        #     "LLM is not configured. Add your ANTHROPIC_API_KEY to the .env file "
+        #     "to enable AI-powered responses."
+        # )
+        return mock_llm.mock_chat_response(note, history, user_msg, chunks, mode)
 
     context = _format_chunks(chunks)
     mode_instruction = CHAT_MODE_INSTRUCTIONS.get(mode, CHAT_MODE_INSTRUCTIONS["auto"])
@@ -250,10 +267,14 @@ def evaluate_response(user_answer, source_chunks, question, overlap_stats=None):
 
     client = _get_client()
     if client is None:
-        return {
-            "correct": True, "partial": False, "verbatim": False,
-            "feedback": "", "overlap": overlap_stats,
-        }
+        # --- mock-mode branch (was: trivial pass-through dict) ---
+        # return {
+        #     "correct": True, "partial": False, "verbatim": False,
+        #     "feedback": "", "overlap": overlap_stats,
+        # }
+        return mock_llm.mock_evaluate_response(
+            user_answer, source_chunks, question, overlap_stats
+        )
 
     context = _format_chunks(source_chunks)
 
@@ -356,10 +377,14 @@ def evaluate_generation(user_explanation, source_chunks, prompt_text, overlap_st
 
     client = _get_client()
     if client is None:
-        return {
-            "correct": True, "partial": False, "verbatim": False,
-            "depth": "moderate", "feedback": "", "overlap": overlap_stats,
-        }
+        # --- mock-mode branch (was: trivial pass-through dict) ---
+        # return {
+        #     "correct": True, "partial": False, "verbatim": False,
+        #     "depth": "moderate", "feedback": "", "overlap": overlap_stats,
+        # }
+        return mock_llm.mock_evaluate_generation(
+            user_explanation, source_chunks, prompt_text, overlap_stats
+        )
 
     context = _format_chunks(source_chunks)
 
