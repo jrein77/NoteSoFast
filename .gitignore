@@ -213,3 +213,5 @@ __marimo__/
 # Claude Code
 .claude/
 CLAUDE.md
+# macOS
+.DS_Store
