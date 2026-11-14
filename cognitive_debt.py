@@ -9,7 +9,7 @@ Debt criteria:
   - Nodes with many child nodes (shared tags) that remain unengaged
 """
 
-from datetime import datetime
+import clock
 
 
 class CognitiveDebtTracker:
@@ -25,7 +25,7 @@ class CognitiveDebtTracker:
         if node_id in self._nodes:
             return
         self._nodes[node_id] = {
-            "created_at": datetime.now(),
+            "created_at": clock.now(),
             "last_engaged": None,
             "engagement_count": 0,
             "tags": tags or [],
@@ -40,7 +40,7 @@ class CognitiveDebtTracker:
         if node_id not in self._nodes:
             self.register_node(node_id)
         node = self._nodes[node_id]
-        node["last_engaged"] = datetime.now()
+        node["last_engaged"] = clock.now()
         node["engagement_count"] += 1
 
     def get_node_state(self, node_id):
@@ -55,7 +55,7 @@ class CognitiveDebtTracker:
         if node["engagement_count"] > 0:
             return False
         hours_since_creation = (
-            (datetime.now() - node["created_at"]).total_seconds() / 3600.0
+            (clock.now() - node["created_at"]).total_seconds() / 3600.0
         )
         return hours_since_creation >= self.debt_threshold_hours
 
@@ -69,7 +69,7 @@ class CognitiveDebtTracker:
             List of dicts with node metadata
         """
         debt = []
-        now = datetime.now()
+        now = clock.now()
 
         for node_id, state in self._nodes.items():
             if state["engagement_count"] > 0:

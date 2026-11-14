@@ -151,6 +151,9 @@ def _build_graph_context(hint_state):
 
 def _generate_socratic_hint(hint_state, level):
     """Generate a Socratic question hint at the given level (1–3)."""
+    if getattr(hint_state, "script", None):
+        import scripted
+        return scripted.hint(hint_state.script, level)
     client = _get_client()
     if client is None:
         # --- mock-mode branch (was: _fallback_hint, kept below for reference) ---
@@ -235,6 +238,9 @@ Do not include labels like "Hint:" or "Level:". Just output the question."""
 
 def _generate_reveal(hint_state):
     """Generate a Level 4 direct reveal with the full answer."""
+    if getattr(hint_state, "script", None):
+        import scripted
+        return scripted.reveal(hint_state.script)
     client = _get_client()
     if client is None:
         # --- mock-mode branch (was: dump retrieved source text verbatim) ---

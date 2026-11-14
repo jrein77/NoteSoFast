@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo intro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500&display=swap" rel="stylesheet">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { background: #f4f4f1; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+  /* The network fills the whole screen; the wordmark stays centred */
+  #anim { position: fixed; inset: 0; }
+  #anim svg text[font-family*="Newsreader"] { font-family: "Newsreader", Georgia, serif; font-weight: 500; }
+  button {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    font: inherit; font-size: 13px; color: #232321; background: rgba(244, 244, 241, 0.9);
+    border: 1px solid rgba(35, 35, 33, 0.25); border-radius: 999px; padding: 6px 16px; cursor: pointer;
+  }
+  button:hover { border-color: #232321; }
+</style>
+</head>
+<body>
+<div id="anim" aria-label="NoteSoFast logo animation"></div>
+<button id="replay" type="button">Replay</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+<script>
+  (async function () {
+    try {
+      await Promise.race([document.fonts.load('500 64px "Newsreader"'), new Promise(function (r) { setTimeout(r, 2500); })]);
+    } catch (e) { /* fall back to Georgia/serif */ }
+    var anim = lottie.loadAnimation({
+      container: document.getElementById('anim'),
+      renderer: 'svg', loop: false, autoplay: false, path: 'logo-intro.json',
+      rendererSettings: { preserveAspectRatio: 'xMidYMid slice' }
+    });
+    // Build the network once, then keep the living network running
+    var LIVE = [110, 300];
+    anim.addEventListener('DOMLoaded', function () { anim.playSegments([0, 300], true); });
+    anim.addEventListener('complete', function () { anim.playSegments(LIVE, true); });
+    document.getElementById('replay').addEventListener('click', function () { anim.playSegments([0, 300], true); });
+  })();
+</script>
+</body>
+</html>

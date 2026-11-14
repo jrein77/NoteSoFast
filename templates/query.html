@@ -1,106 +1,136 @@
 {% extends "base.html" %}
 
-{% block title %}NoteSoFast - Query{% endblock %}
-
-{% block breadcrumb %}
-<a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
-<span class="breadcrumb-sep">/</span>
-<span class="breadcrumb-item breadcrumb-item--active">Query</span>
-{% endblock %}
+{% block title %}Ask · NoteSoFast{% endblock %}
+{% block breadcrumb %}<span class="current">Ask</span>{% endblock %}
 
 {% block content %}
-<div class="query-layout">
-    <div class="query-input-section">
-        <form method="post" class="query-form">
-            <div class="query-input-wrapper">
-                <textarea
-                    name="query"
-                    class="input textarea query-textarea"
-                    placeholder="Ask a question about your notes..."
-                    rows="3"
-                    required
-                >{% if result %}{{ result.query }}{% endif %}</textarea>
-                <button type="submit" class="btn btn-primary query-submit">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-                        <line x1="22" y1="2" x2="11" y2="13"/>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                    </svg>
-                    Query
-                </button>
-            </div>
-        </form>
-
-        <div class="query-modes-info">
-            <h3 class="query-modes-title">Response Modes</h3>
-            <div class="query-modes-grid">
-                <div class="query-mode">
-                    <div class="query-mode-icon mode-direct">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <strong>Direct Answer</strong>
-                        <p class="text-muted">For mastered topics, retrieves content directly.</p>
-                    </div>
-                </div>
-                <div class="query-mode">
-                    <div class="query-mode-icon mode-question">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                            <line x1="12" y1="17" x2="12.01" y2="17"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <strong>Retrieval Question</strong>
-                        <p class="text-muted">Prompts you to recall the answer from memory.</p>
-                    </div>
-                </div>
-                <div class="query-mode">
-                    <div class="query-mode-icon mode-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="16" x2="12" y2="12"/>
-                            <line x1="12" y1="8" x2="12.01" y2="8"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <strong>Progressive Hints</strong>
-                        <p class="text-muted">Guides you to the answer through scaffolded hints.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="ask">
+    <div class="ask-hero">
+        <div class="eyebrow">Ask your notes</div>
+        <h1>What do you want to know?</h1>
+        <p>Concepts you've mastered answer straight away. For anything you're still learning, you'll try to recall it first; that's what makes it stick.</p>
     </div>
 
-    {% if result %}
-    <div class="query-result">
-        <div class="result-header">
-            <span class="result-mode-badge mode-badge-{{ result.mode }}">
-                {% if result.mode == 'direct' %}Direct Answer
-                {% elif result.mode == 'question' %}Retrieval Question
-                {% else %}Guided Hints{% endif %}
-            </span>
+    <form class="composer" id="ask-form" autocomplete="off">
+        <textarea id="ask-input" rows="2" placeholder="e.g. How does spaced repetition schedule reviews?" autofocus></textarea>
+        <div class="composer-bar">
+            <span class="composer-hint">↵ ask · ⇧↵ new line</span>
+            <button type="submit" class="send-btn" id="ask-send" disabled aria-label="Ask"><i data-lucide="arrow-up"></i></button>
         </div>
+    </form>
 
-        <div class="result-body">
-            <p>{{ result.response }}</p>
-        </div>
-
-        {% if result.sources %}
-        <div class="result-sources">
-            <h4>Related Notes</h4>
-            <ul>
-                {% for source in result.sources %}
-                <li>
-                    <a href="{{ url_for('note_detail', note_id=source.id) }}">{{ source.title }}</a>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endif %}
+    <div class="ask-suggest" id="ask-suggest">
+        <button type="button" class="chip">What is the testing effect?</button>
+        <button type="button" class="chip">How does RAG ground an answer?</button>
+        <button type="button" class="chip">Why does interleaving help?</button>
     </div>
-    {% endif %}
+
+    <div id="ask-result"></div>
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+<script>
+(function () {
+    const form = document.getElementById('ask-form');
+    const input = document.getElementById('ask-input');
+    const send = document.getElementById('ask-send');
+    const out = document.getElementById('ask-result');
+    const STATUS = { green: '#4f7d5c', yellow: '#b08433', red: '#bb5a45', not_started: '#94948c' };
+    let current = null;
+    const esc = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const meter = (v, st, n) => {
+        const f = st === 'not_started' ? 0 : Math.round(v * n);
+        return '<span class="ascii-bar st-' + st + '">' + '●'.repeat(f) + '<span class="ascii-rest">' + '·'.repeat(n - f) + '</span></span>';
+    };
+    const avatar = '<span class="msg-avatar msg-avatar--text" aria-hidden="true">N</span>';
+
+    function conceptHead(c) {
+        const pct = c.mastery === 'not_started' ? 'new' : Math.round(c.mastery_value * 100) + '% memory score';
+        return '<div class="ask-concept"><div><div class="eyebrow">' + esc(c.group) + '</div><strong>' + esc(c.title) + '</strong></div>' +
+            '<div class="ask-concept-score">' + meter(c.mastery_value, c.mastery, 10) + '<span>' + pct + '</span></div></div>';
+    }
+    function sources(list) {
+        if (!list || !list.length) return '';
+        return '<div class="source-row"><span class="muted-mono">from your notes</span>' + list.map((s) =>
+            '<a class="chip" href="/notes/' + s.id + '">' + esc(s.title) + '</a>').join('') + '</div>';
+    }
+    async function stream(el, text) {
+        el.classList.add('caret');
+        for (let i = 0; i <= text.length; i += 3) { el.textContent = text.slice(0, i); await new Promise((r) => setTimeout(r, 10)); }
+        el.textContent = text;
+        el.classList.remove('caret');
+    }
+    async function call(payload) {
+        return (await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })).json();
+    }
+    function thinking() { out.innerHTML = '<div class="card ask-answer"><div class="typing"><i></i><i></i><i></i></div></div>'; }
+
+    async function showAnswer(d) {
+        let note = '';
+        if (d.why === 'mastered') note = '<div class="policy-note"><i data-lucide="check"></i> You’ve mastered this, so here’s the answer straight away.</div>';
+        if (d.why === 'revealed') note = '<div class="policy-note"><i data-lucide="eye"></i> Looked up without recalling. Your memory score didn’t change.</div>';
+        let recall = '';
+        if (d.why === 'attempted') {
+            const n = d.recalled.length;
+            recall = '<div class="fb-card ' + (n >= Math.max(1, Math.floor(d.total / 2)) ? 'correct' : 'partial') + '"><div class="fb-icon"><i data-lucide="' +
+                (n ? 'check' : 'circle-dot') + '"></i></div><div><div class="fb-verdict">You recalled ' + n + ' of ' + d.total + ' key ideas</div>' +
+                '<div class="fb-text">' + (n ? esc(d.recalled.join(' · ')) : 'Compare with the answer below, then try again later.') + '</div></div></div>';
+        }
+        out.innerHTML = '<div class="card ask-answer">' + conceptHead(d.concept) + recall +
+            '<div class="msg msg-ai">' + avatar + '<div class="msg-body"><p id="ask-text"></p></div></div>' + note + sources(d.sources) +
+            '<div class="ask-actions"><a class="btn btn-glass btn-sm" href="/#/concept/' + d.concept.id + '"><i data-lucide="orbit"></i> See it on the map</a></div></div>';
+        window.NSF && window.NSF.icons();
+        await stream(document.getElementById('ask-text'), d.answer || '');
+    }
+
+    function showRecall(d) {
+        out.innerHTML = '<div class="card ask-answer">' + conceptHead(d.concept) +
+            '<div class="msg msg-ai">' + avatar + '<div class="msg-body"><p>' + esc(d.prompt) + '</p></div></div>' +
+            '<form class="composer ask-recall" id="recall-form"><textarea id="recall-input" rows="3" placeholder="Write what you remember, even if it’s partial…"></textarea>' +
+            '<div class="composer-bar"><button type="button" class="btn btn-ghost btn-sm" id="just-show">Just show me</button>' +
+            '<span class="composer-hint">Recalling first builds memory; looking it up doesn’t</span>' +
+            '<button type="submit" class="btn btn-primary btn-sm" id="check-recall" disabled>Check my recall</button></div></form>' +
+            sources(d.sources) + '</div>';
+        window.NSF && window.NSF.icons();
+        const ri = document.getElementById('recall-input');
+        const check = document.getElementById('check-recall');
+        ri.focus();
+        ri.addEventListener('input', () => { check.disabled = !ri.value.trim(); });
+        ri.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && ri.value.trim()) { e.preventDefault(); check.click(); } });
+        document.getElementById('recall-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const attempt = ri.value.trim();
+            thinking();
+            showAnswer(await call({ step: 'attempt', query: current, concept_id: d.concept.id, attempt }));
+        });
+        document.getElementById('just-show').addEventListener('click', async () => {
+            thinking();
+            showAnswer(await call({ step: 'reveal', query: current, concept_id: d.concept.id }));
+        });
+    }
+
+    async function ask(q) {
+        current = q;
+        thinking();
+        const d = await call({ step: 'ask', query: q });
+        if (d.mode === 'recall') showRecall(d);
+        else if (d.mode === 'answer') showAnswer(d);
+        else out.innerHTML = '<div class="card ask-answer"><p class="fb-text">' + esc(d.message || d.error) + '</p></div>';
+    }
+
+    input.addEventListener('input', () => { send.disabled = !input.value.trim(); });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (input.value.trim()) ask(input.value.trim()); }
+    });
+    form.addEventListener('submit', (e) => { e.preventDefault(); if (input.value.trim()) ask(input.value.trim()); });
+    document.getElementById('ask-suggest').addEventListener('click', (e) => {
+        const b = e.target.closest('.chip');
+        if (!b) return;
+        input.value = b.textContent;
+        send.disabled = false;
+        ask(b.textContent);
+    });
+})();
+</script>
 {% endblock %}
