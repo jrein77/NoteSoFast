@@ -27,6 +27,14 @@ The app runs at http://localhost:3000.
 
 The application, by default, runs in mock mode so it doesn't incur API cost. To change it, add an API key and click the "Mock Mode" button in the sidebar of the chat to switch to "Live API". Then, the responses will mirror the example provided in the video walkthrough.
 
+### Knowledge graph
+
+- **Nodes** are colored by memory strength (decayed mastery). Forgetting slows with each correct review.
+- **Edges** show connection strength. A connection only strengthens when you answer a cross-topic (Level 3–4) question that links the two topics, and it fades over time. Spaced reviews make it last longer than crammed ones (see `connections.py`).
+- Click a node to practice in a side drawer. Strengthened links pulse in the graph as you answer.
+- **Time travel** (bottom slider) fast-forwards the clock so you can watch what fades without review. **Reset demo** restores the seeded history in `demo_seed.py`.
+- State persists to `data/state.json`. Delete it to start over.
+
 ## Evaluation
 
 The system was evaluated using a simulated student-teacher protocol (Phung et al., 2024). Claude Sonnet acts as the tutor, and Claude Haiku acts as the student under four behavioral profiles: novice, intermediate, expert, and gaming. Results are in `evaluation/logs/`. The analysis script (`evaluation/analyze.py`) produces the figures and statistics reported in the final paper.

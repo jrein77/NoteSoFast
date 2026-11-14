@@ -1,306 +1,348 @@
 {% extends "base.html" %}
 
-{% block title %}{% if note %}{{ note.title }}{% else %}New Note{% endif %} - NoteSoFast{% endblock %}
+{% block title %}{% if note %}{{ note.title }}{% else %}New note{% endif %} · NoteSoFast{% endblock %}
 
 {% block breadcrumb %}
-<a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
-<span class="breadcrumb-sep">/</span>
-<a href="{{ url_for('notes_list') }}" class="breadcrumb-item">Notes</a>
-<span class="breadcrumb-sep">/</span>
-<span class="breadcrumb-item breadcrumb-item--active">{% if note %}{{ note.title }}{% else %}New Note{% endif %}</span>
+<a href="{{ url_for('notes_list') }}">Notes</a>
+<span class="sep">/</span>
+<span class="current">{% if note %}{{ note.title }}{% else %}New note{% endif %}</span>
 {% endblock %}
 
 {% block page_actions %}
 {% if note %}
-<div class="view-toggle">
-    <a href="{{ url_for('note_detail', note_id=note.id) }}" class="view-toggle-btn" title="View note content">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-        </svg>
-        Note
-    </a>
-    <a href="{{ url_for('note_chat', note_id=note.id) }}" class="view-toggle-btn" title="Open chat for this note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        Chat
-    </a>
-</div>
+<form action="{{ url_for('note_delete', note_id=note.id) }}" method="post" onsubmit="return confirm('Delete this note?')">
+    <button type="submit" class="btn btn-ghost btn-sm btn-danger"><i data-lucide="trash-2"></i> Delete</button>
+</form>
 {% endif %}
+<a href="{{ url_for('notes_list') }}" class="btn btn-ghost btn-sm">Done</a>
+<button type="submit" form="note-form" class="btn btn-primary btn-sm"><i data-lucide="check"></i> {% if note %}Save{% else %}Create{% endif %} <kbd class="kbd-on-dark">⌘S</kbd></button>
 {% endblock %}
 
-{% block content_class %}content-body--editor{% endblock %}
+{% block content_class %}page editor-page{% endblock %}
 
 {% block content %}
-<form method="post" class="editor-container" id="note-form">
-    <div class="editor-toolbar">
-        <div class="toolbar-group">
-            <button type="button" class="toolbar-btn" title="Bold" onclick="execFormat('bold')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
-                    <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
-                    <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
-                </svg>
-            </button>
-            <button type="button" class="toolbar-btn" title="Italic" onclick="execFormat('italic')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <line x1="19" y1="4" x2="10" y2="4"/>
-                    <line x1="14" y1="20" x2="5" y2="20"/>
-                    <line x1="15" y1="4" x2="9" y2="20"/>
-                </svg>
-            </button>
-            <button type="button" class="toolbar-btn" title="Underline" onclick="execFormat('underline')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/>
-                    <line x1="4" y1="21" x2="20" y2="21"/>
-                </svg>
-            </button>
-            <button type="button" class="toolbar-btn" title="Strikethrough" onclick="execFormat('strikeThrough')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M16 4H9a3 3 0 0 0 0 6h6a3 3 0 0 1 0 6H8"/>
-                    <line x1="4" y1="12" x2="20" y2="12"/>
-                </svg>
-            </button>
+<form method="post" id="note-form" class="card doc">
+    <input class="doc-title" name="title" placeholder="Untitled" value="{{ note.title if note else '' }}" required autocomplete="off" {% if not note %}autofocus{% endif %}>
+    <div class="doc-meta">
+        <label class="meta-pill">
+            <i data-lucide="folder"></i>
+            {% set current = (note.group if note and note.group else default_group) %}
+            <select name="group">
+                <option value="">No group</option>
+                {% for g in groups %}<option value="{{ g.name }}" {% if g.name == current or g.id == current %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+            </select>
+        </label>
+        <label class="meta-pill">
+            <i data-lucide="tag"></i>
+            <input name="tags" placeholder="tags, comma separated" value="{{ note.tags|join(', ') if note else '' }}" autocomplete="off">
+        </label>
+    </div>
+
+    <div class="editor-bar" id="editor-bar">
+        <div class="segmented mode-toggle" role="tablist">
+            <button type="button" data-mode="write" class="is-active">Write</button>
+            <button type="button" data-mode="read">Study</button>
         </div>
-
-        <div class="toolbar-divider"></div>
-
-        <div class="toolbar-group">
-            <button type="button" class="toolbar-btn" title="Heading" onclick="execFormat('formatBlock', 'h2')">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <text x="2" y="18" font-size="16" font-weight="700" font-family="Inter, sans-serif">H</text>
-                </svg>
-            </button>
-            <button type="button" class="toolbar-btn" title="Quote" onclick="execFormat('formatBlock', 'blockquote')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/>
-                    <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3z"/>
-                </svg>
-            </button>
+        <div class="tb-group" data-write-only>
+            <button type="button" class="tb-btn" data-cmd="h2" title="Heading"><i data-lucide="heading-2"></i></button>
+            <button type="button" class="tb-btn" data-cmd="bold" title="Bold  ⌘B"><i data-lucide="bold"></i></button>
+            <button type="button" class="tb-btn" data-cmd="italic" title="Italic  ⌘I"><i data-lucide="italic"></i></button>
+            <button type="button" class="tb-btn" data-cmd="mark" title="Highlight  ⌘⇧H"><i data-lucide="highlighter"></i></button>
+            <span class="tb-sep"></span>
+            <button type="button" class="tb-btn" data-cmd="ul" title="Bullet list"><i data-lucide="list"></i></button>
+            <button type="button" class="tb-btn" data-cmd="ol" title="Numbered list"><i data-lucide="list-ordered"></i></button>
+            <button type="button" class="tb-btn" data-cmd="quote" title="Quote"><i data-lucide="quote"></i></button>
+            <span class="tb-sep"></span>
+            <button type="button" class="tb-btn" data-cmd="hide" title="Hide in Study mode  ⌘⇧K"><i data-lucide="square-dashed"></i></button>
         </div>
-
-        <div class="toolbar-divider"></div>
-
-        <div class="toolbar-group">
-            <button type="button" class="toolbar-btn" title="Bullet List" onclick="execFormat('insertUnorderedList')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <line x1="8" y1="6" x2="21" y2="6"/>
-                    <line x1="8" y1="12" x2="21" y2="12"/>
-                    <line x1="8" y1="18" x2="21" y2="18"/>
-                    <circle cx="4" cy="6" r="1" fill="currentColor"/>
-                    <circle cx="4" cy="12" r="1" fill="currentColor"/>
-                    <circle cx="4" cy="18" r="1" fill="currentColor"/>
-                </svg>
-            </button>
-            <button type="button" class="toolbar-btn" title="Numbered List" onclick="execFormat('insertOrderedList')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <line x1="10" y1="6" x2="21" y2="6"/>
-                    <line x1="10" y1="12" x2="21" y2="12"/>
-                    <line x1="10" y1="18" x2="21" y2="18"/>
-                    <text x="2" y="9" font-size="8" fill="currentColor" font-family="Inter, sans-serif">1</text>
-                    <text x="2" y="15" font-size="8" fill="currentColor" font-family="Inter, sans-serif">2</text>
-                    <text x="2" y="21" font-size="8" fill="currentColor" font-family="Inter, sans-serif">3</text>
-                </svg>
-            </button>
-        </div>
-
-        <div class="toolbar-divider"></div>
-
-        <div class="toolbar-group">
-            <button type="button" class="toolbar-btn" title="Undo" onclick="document.execCommand('undo')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <polyline points="1 4 1 10 7 10"/>
-                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-                </svg>
-            </button>
-            <button type="button" class="toolbar-btn" title="Redo" onclick="document.execCommand('redo')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <polyline points="23 4 23 10 17 10"/>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                </svg>
-            </button>
-        </div>
-
-        {% if note %}
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-            <button type="button" id="redact-btn" class="toolbar-action-btn" title="Redact keywords to test recall">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-                <span>Redact</span>
-            </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-            <a href="{{ url_for('note_chat', note_id=note.id) }}" class="toolbar-action-btn" title="Practice with AI">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                <span>Chat</span>
-            </a>
-        </div>
-        {% endif %}
-
-        <div class="toolbar-spacer"></div>
-
-        {% if note %}
-        <div class="toolbar-group">
-            <button type="button" class="toolbar-action-btn toolbar-action-btn--danger" title="Delete"
-                    onclick="if(confirm('Delete this note?')){var f=document.createElement('form');f.method='post';f.action='{{ url_for('note_delete', note_id=note.id) }}';document.body.appendChild(f);f.submit();}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-                <span>Delete</span>
-            </button>
-        </div>
-
-        <div class="toolbar-divider"></div>
-        {% endif %}
-
-        <div class="toolbar-group toolbar-actions">
-            <a href="{{ url_for('notes_list') }}" class="btn btn-ghost btn-sm">Cancel</a>
-            <button type="submit" class="btn btn-primary btn-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                    <polyline points="17 21 17 13 7 13 7 21"/>
-                    <polyline points="7 3 7 8 15 8"/>
-                </svg>
-                {% if note %}Save{% else %}Create{% endif %}
-            </button>
+        <div class="tb-group" data-read-only hidden>
+            <button type="button" class="tb-btn tb-btn--label" id="recall-toggle" aria-pressed="false" title="Quiz yourself: hidden words stay blank until you click them"><i data-lucide="eye-off"></i> Recall mode</button>
+            <span class="recall-tools" id="recall-tools" hidden>
+                <span class="tb-sep"></span>
+                <button type="button" class="tb-btn tb-btn--label" id="recall-keys">Hide key terms</button>
+                <button type="button" class="tb-btn tb-btn--label" id="recall-show">Show all</button>
+                <span class="recall-count muted-mono" id="recall-count"></span>
+            </span>
         </div>
     </div>
 
-    <div class="editor-document">
-        <input
-            type="text"
-            id="title"
-            name="title"
-            class="editor-title-input"
-            placeholder="Untitled Note"
-            value="{{ note.title if note else '' }}"
-            required
-        >
-        <div class="editor-tags-row">
-            <svg class="editor-tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                <line x1="7" y1="7" x2="7.01" y2="7"/>
-            </svg>
-            <input
-                type="text"
-                id="tags"
-                name="tags"
-                class="editor-tags-input"
-                placeholder="Add tags (comma-separated)..."
-                value="{{ note.tags | join(', ') if note else '' }}"
-            >
-        </div>
+    <div class="doc-render doc-editable" id="doc-editor" contenteditable="true" spellcheck="true" data-placeholder="Start writing…"></div>
+    <div class="doc-render" id="doc-render" hidden></div>
+    <textarea name="content" id="doc-source" hidden>{{ note.content if note else '' }}</textarea>
 
-        <div
-            id="editor"
-            class="editor-body"
-            contenteditable="true"
-            data-placeholder="Start writing your note..."
-        >{{ note.content if note else '' }}</div>
+    <div class="doc-footer">
+        <span id="word-count">0 words</span>
+        <span class="doc-hint" id="recall-hint" hidden>Click any word to hide or show it</span>
+        <span id="save-state">{% if saved %}Saved{% endif %}</span>
     </div>
-    <textarea id="content" name="content" class="editor-hidden-textarea">{{ note.content if note else '' }}</textarea>
 </form>
+{% endblock %}
 
+{% block body_scripts %}
 <script>
-const editor = document.getElementById('editor');
-const hiddenContent = document.getElementById('content');
-const form = document.getElementById('note-form');
-
-// Sync contenteditable to hidden textarea on submit
-form.addEventListener('submit', function() {
-    hiddenContent.value = editor.innerText;
-});
-
-// Also sync periodically for safety
-editor.addEventListener('input', function() {
-    hiddenContent.value = editor.innerText;
-});
-
-function execFormat(command, value) {
-    document.execCommand(command, false, value || null);
-    editor.focus();
-}
-
-// Focus editor on load if new note
-{% if not note %}
-editor.focus();
-{% endif %}
-
-{% if note %}
-// Redact feature
 (function () {
-    var noteId = "{{ note.id }}";
-    var btn = document.getElementById('redact-btn');
-    if (!btn || !editor) return;
+    const form = document.getElementById('note-form');
+    const editor = document.getElementById('doc-editor');
+    const source = document.getElementById('doc-source');
+    const render = document.getElementById('doc-render');
+    const count = document.getElementById('word-count');
+    const recallBtn = document.getElementById('recall-toggle');
+    const recallCount = document.getElementById('recall-count');
+    const recallTools = document.getElementById('recall-tools');
+    const recallHint = document.getElementById('recall-hint');
+    const noteId = {{ (note.id if note else '')|tojson }};
+    let keywords = null, recall = false;
 
-    var redacted = false;
-    var originalHTML = null;
-    var redactionData = null;
-
-    btn.addEventListener('click', async function () {
-        if (redacted) {
-            editor.innerHTML = originalHTML;
-            editor.contentEditable = 'true';
-            redacted = false;
-            btn.classList.remove('toolbar-action-btn--active');
-            return;
-        }
-
-        // Save current state
-        originalHTML = editor.innerHTML;
-
-        if (redactionData === null) {
-            try {
-                var res = await fetch('/api/notes/' + noteId + '/keywords');
-                redactionData = await res.json();
-            } catch (e) {
-                redactionData = { keywords: [], patterns: [] };
-            }
-        }
-
-        var keywords = redactionData.keywords || [];
-        var patterns = redactionData.patterns || [];
-        if (keywords.length === 0 && patterns.length === 0) return;
-
-        var patternRegex = patterns.length > 0 ? new RegExp('(' + patterns.join('|') + ')', 'g') : null;
-        var escaped = keywords.map(function (k) {
-            return '\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b';
+    // ---------- markup <-> HTML ----------
+    // Notes are stored as light markup (**bold**, *italic*, ==highlight==, ||hidden||,
+    // ## heading, - / 1. lists, > quote) so search, key ideas and practice keep working.
+    const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    function inline(t) {
+        return esc(t)
+            .replace(/\|\|(.+?)\|\|/g, '<span class="cloze">$1</span>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<em>$2</em>')
+            .replace(/==(.+?)==/g, '<mark>$1</mark>')
+            .replace(/`(.+?)`/g, '<code>$1</code>');
+    }
+    function toHtml(src, keepBlank) {
+        const out = [];
+        let list = null;
+        const close = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+        src.split('\n').forEach((raw) => {
+            const l = raw.replace(/\s+$/, '');
+            let m;
+            if ((m = l.match(/^(#{1,3}) (.*)/))) { close(); const h = 'h' + (m[1].length + 1); out.push('<' + h + '>' + inline(m[2]) + '</' + h + '>'); }
+            else if ((m = l.match(/^\s*[-*] (.*)/))) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push('<li>' + (inline(m[1]) || '<br>') + '</li>'); }
+            else if ((m = l.match(/^\s*\d+[.)] (.*)/))) { if (list !== 'ol') { close(); out.push('<ol>'); list = 'ol'; } out.push('<li>' + (inline(m[1]) || '<br>') + '</li>'); }
+            else if ((m = l.match(/^> (.*)/))) { close(); out.push('<blockquote>' + inline(m[1]) + '</blockquote>'); }
+            else if (!l.trim()) { close(); if (keepBlank) out.push('<p><br></p>'); }
+            else { close(); out.push('<p>' + inline(l) + '</p>'); }
         });
-        var keywordRegex = escaped.length > 0 ? new RegExp('(' + escaped.join('|') + ')', 'gi') : null;
-
-        var html = originalHTML.replace(/(<[^>]*>)|([^<]+)/g, function (match, tag, text) {
-            if (tag) return tag;
-            if (patternRegex) {
-                text = text.replace(patternRegex, function (m) {
-                    return '<span class="redacted-word">' + m + '</span>';
-                });
-            }
-            if (keywordRegex) {
-                text = text.replace(/(<span class="redacted-word">.*?<\/span>)|([^<]+)/g, function (m, span, plain) {
-                    if (span) return span;
-                    if (!plain) return m;
-                    return plain.replace(keywordRegex, function (w) {
-                        return '<span class="redacted-word">' + w + '</span>';
-                    });
-                });
-            }
-            return text;
+        close();
+        return out.join('');
+    }
+    function inlineMd(node) {
+        let s = '';
+        node.childNodes.forEach((c) => {
+            if (c.nodeType === 3) { s += c.nodeValue.replace(/ /g, ' '); return; }
+            if (c.nodeType !== 1) return;
+            const tag = c.tagName, inner = inlineMd(c);
+            if (tag === 'BR') s += '';
+            else if (!inner.trim()) s += inner;
+            else if (tag === 'B' || tag === 'STRONG' || (tag === 'SPAN' && /bold|[67]00/.test(c.style.fontWeight))) s += '**' + inner + '**';
+            else if (tag === 'I' || tag === 'EM') s += '*' + inner + '*';
+            else if (tag === 'MARK') s += '==' + inner + '==';
+            else if (tag === 'SPAN' && c.classList.contains('cloze')) s += '||' + inner + '||';
+            else if (tag === 'CODE') s += '`' + inner + '`';
+            else s += inner;
         });
+        return s;
+    }
+    function toMd(root) {
+        const lines = [];
+        const block = (el) => {
+            const tag = el.tagName;
+            if (tag === 'UL' || tag === 'OL') {
+                [...el.children].forEach((li, i) => lines.push((tag === 'UL' ? '- ' : (i + 1) + '. ') + inlineMd(li).trim()));
+            } else if (/^H[2-4]$/.test(tag)) lines.push('#'.repeat(+tag[1] - 1) + ' ' + inlineMd(el).trim());
+            else if (tag === 'BLOCKQUOTE') inlineMd(el).split('\n').forEach((l) => lines.push('> ' + l.trim()));
+            else lines.push(inlineMd(el).trim());
+        };
+        let loose = '';
+        root.childNodes.forEach((c) => {
+            if (c.nodeType === 3 || (c.nodeType === 1 && /^(B|STRONG|I|EM|MARK|SPAN|CODE|BR|A)$/.test(c.tagName))) {
+                loose += c.nodeType === 3 ? c.nodeValue : inlineMd({ childNodes: [c] });
+                return;
+            }
+            if (loose.trim()) { lines.push(loose.trim()); loose = ''; }
+            if (c.nodeType === 1) block(c);
+        });
+        if (loose.trim()) lines.push(loose.trim());
+        return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
 
-        editor.innerHTML = html;
-        editor.contentEditable = 'false';
-        redacted = true;
-        btn.classList.add('toolbar-action-btn--active');
+    // ---------- Write mode (what you see is what you get) ----------
+    editor.innerHTML = toHtml(source.value, true) || '<p><br></p>';
+    function sync() {
+        source.value = toMd(editor);
+        const n = editor.innerText.trim() ? editor.innerText.trim().split(/\s+/).length : 0;
+        count.textContent = n + (n === 1 ? ' word' : ' words');
+        editor.classList.toggle('is-empty', !editor.innerText.trim());
+    }
+    function currentBlock() {
+        const sel = getSelection();
+        if (!sel.rangeCount) return null;
+        let n = sel.anchorNode;
+        while (n && n !== editor) { if (n.nodeType === 1 && /^(P|DIV|H2|H3|H4|BLOCKQUOTE|LI)$/.test(n.tagName)) return n; n = n.parentNode; }
+        return null;
+    }
+    function toggleWrap(tag, cls) {
+        const sel = getSelection();
+        if (!sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        // already inside one? unwrap it
+        let n = range.commonAncestorContainer;
+        while (n && n !== editor) {
+            if (n.nodeType === 1 && n.tagName === tag.toUpperCase() && (!cls || n.classList.contains(cls))) {
+                n.replaceWith(...n.childNodes); sync(); return;
+            }
+            n = n.parentNode;
+        }
+        if (range.collapsed) return;
+        const el = document.createElement(tag);
+        if (cls) el.className = cls;
+        el.appendChild(range.extractContents());
+        range.insertNode(el);
+        sel.removeAllRanges();
+        const r = document.createRange(); r.selectNodeContents(el); sel.addRange(r);
+        sync();
+    }
+    function formatBlock(tag) {
+        const b = currentBlock();
+        const already = b && b.tagName === tag.toUpperCase();
+        document.execCommand('formatBlock', false, already ? 'p' : tag);
+        sync();
+    }
+    const cmds = {
+        bold: () => { document.execCommand('bold'); sync(); },
+        italic: () => { document.execCommand('italic'); sync(); },
+        mark: () => toggleWrap('mark'),
+        hide: () => toggleWrap('span', 'cloze'),
+        h2: () => formatBlock('h2'),
+        quote: () => formatBlock('blockquote'),
+        ul: () => { document.execCommand('insertUnorderedList'); sync(); },
+        ol: () => { document.execCommand('insertOrderedList'); sync(); },
+    };
+    function refreshActive() {
+        const b = currentBlock();
+        document.querySelectorAll('[data-cmd]').forEach((btn) => {
+            const c = btn.dataset.cmd;
+            let on = false;
+            if (c === 'bold' || c === 'italic') on = document.queryCommandState(c);
+            else if (c === 'h2') on = !!b && b.tagName === 'H2';
+            else if (c === 'quote') on = !!b && b.tagName === 'BLOCKQUOTE';
+            else if (c === 'ul' || c === 'ol') on = !!b && b.tagName === 'LI' && b.parentNode.tagName === c.toUpperCase();
+            else if (c === 'mark' || c === 'hide') {
+                let n = getSelection().anchorNode;
+                while (n && n !== editor) { if (n.nodeType === 1 && (c === 'mark' ? n.tagName === 'MARK' : n.classList && n.classList.contains('cloze'))) { on = true; break; } n = n.parentNode; }
+            }
+            btn.classList.toggle('is-active', on);
+        });
+    }
+    document.querySelectorAll('[data-cmd]').forEach((b) => {
+        b.addEventListener('mousedown', (e) => e.preventDefault());   // keep the text selection
+        b.addEventListener('click', () => { editor.focus(); cmds[b.dataset.cmd](); refreshActive(); });
     });
+    editor.addEventListener('input', sync);
+    document.addEventListener('selectionchange', () => { if (editor.contains(getSelection().anchorNode)) refreshActive(); });
+    editor.addEventListener('keydown', (e) => {
+        const mod = e.metaKey || e.ctrlKey;
+        if (mod && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); cmds.mark(); }
+        if (mod && e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); cmds.hide(); }
+        if (mod && !e.shiftKey && (e.key === 'b' || e.key === 'i')) setTimeout(() => { sync(); refreshActive(); }, 0);
+    });
+    editor.addEventListener('paste', (e) => {
+        e.preventDefault();
+        document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+    });
+    document.execCommand('defaultParagraphSeparator', false, 'p');
+    form.addEventListener('submit', sync);
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); sync(); form.requestSubmit(); }
+    });
+
+    // ---------- Study mode + Recall ----------
+    // Every word becomes a token you can hide or show by clicking. Key terms (and text
+    // you marked hidden) start hidden. Choices persist per note in this browser.
+    const storeKey = 'nsf-recall-' + (noteId || 'new');
+    function loadChoices() {
+        try { const v = JSON.parse(localStorage.getItem(storeKey) || 'null'); return v && v.len === source.value.length ? v : null; }
+        catch (e) { return null; }
+    }
+    function saveChoices() {
+        try {
+            const hidden = [...render.querySelectorAll('.tok')].map((t, i) => (t.classList.contains('hidden') ? i : -1)).filter((i) => i >= 0);
+            localStorage.setItem(storeKey, JSON.stringify({ len: source.value.length, hidden }));
+        } catch (e) { /* storage unavailable: choices last for this visit */ }
+    }
+    function keyRegex() {
+        if (!keywords) return null;
+        const terms = (keywords.keywords || []).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        return terms.length ? new RegExp('^(' + terms.join('|') + ')$', 'i') : null;
+    }
+    function tokenize(root) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach((n) => {
+            const cloze = n.parentElement.closest('.cloze');
+            if (cloze) { cloze.classList.add('tok', 'is-cloze'); cloze.tabIndex = 0; return; }
+            const frag = document.createDocumentFragment();
+            n.nodeValue.split(/(\s+)/).forEach((part) => {
+                if (!part) return;
+                if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+                const m = part.match(/^([^\w]*)([\w'’-]+)([^\w]*)$/);
+                if (!m) { frag.appendChild(document.createTextNode(part)); return; }
+                if (m[1]) frag.appendChild(document.createTextNode(m[1]));
+                const s = document.createElement('span');
+                s.className = 'tok'; s.textContent = m[2]; s.tabIndex = 0;
+                frag.appendChild(s);
+                if (m[3]) frag.appendChild(document.createTextNode(m[3]));
+            });
+            n.replaceWith(frag);
+        });
+    }
+    function applyDefaults() {
+        const re = keyRegex();
+        render.querySelectorAll('.tok').forEach((t) => t.classList.toggle('hidden', t.classList.contains('is-cloze') || (re ? re.test(t.textContent) : false)));
+    }
+    function updateCount() { recallCount.textContent = recall ? render.querySelectorAll('.tok.hidden').length + ' hidden' : ''; }
+    async function paint() {
+        render.innerHTML = toHtml(source.value, false) || '<p class="muted">Nothing written yet.</p>';
+        render.classList.toggle('is-recall', recall);
+        recallTools.hidden = !recall;
+        recallHint.hidden = !recall;
+        if (recall) {
+            if (!keywords && noteId) { try { keywords = await (await fetch('/api/notes/' + noteId + '/keywords')).json(); } catch (e) { keywords = {}; } }
+            tokenize(render);
+            const saved = loadChoices();
+            if (saved) { const set = new Set(saved.hidden); render.querySelectorAll('.tok').forEach((t, i) => t.classList.toggle('hidden', set.has(i))); }
+            else applyDefaults();
+        }
+        updateCount();
+    }
+    render.addEventListener('click', (e) => {
+        const t = e.target.closest('.tok');
+        if (!t || !recall) return;
+        t.classList.toggle('hidden'); saveChoices(); updateCount();
+    });
+    render.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('tok') && recall) { e.preventDefault(); e.target.click(); }
+    });
+    document.getElementById('recall-keys').addEventListener('click', () => { applyDefaults(); saveChoices(); updateCount(); });
+    document.getElementById('recall-show').addEventListener('click', () => { render.querySelectorAll('.tok.hidden').forEach((t) => t.classList.remove('hidden')); saveChoices(); updateCount(); });
+    recallBtn.addEventListener('click', () => {
+        recall = !recall;
+        recallBtn.setAttribute('aria-pressed', String(recall));
+        recallBtn.classList.toggle('is-active', recall);
+        paint();
+    });
+
+    function setMode(mode) {
+        sync();
+        document.querySelectorAll('.mode-toggle button').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === mode));
+        const read = mode === 'read';
+        editor.hidden = read;
+        render.hidden = !read;
+        document.querySelectorAll('[data-write-only]').forEach((el) => { el.hidden = read; });
+        document.querySelectorAll('[data-read-only]').forEach((el) => { el.hidden = !read; });
+        if (read) paint(); else { recallHint.hidden = true; editor.focus(); }
+    }
+    document.querySelectorAll('.mode-toggle button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+    sync();
+    setMode(noteId && source.value.trim() ? 'read' : 'write');
 })();
-{% endif %}
 </script>
 {% endblock %}

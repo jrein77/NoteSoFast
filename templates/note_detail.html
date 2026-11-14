@@ -1,200 +1,99 @@
 {% extends "base.html" %}
 
-{% block title %}{{ note.title }} - NoteSoFast{% endblock %}
+{% block title %}{{ note.title }} · NoteSoFast{% endblock %}
 
 {% block breadcrumb %}
-<a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
-<span class="breadcrumb-sep">/</span>
-<a href="{{ url_for('notes_list') }}" class="breadcrumb-item">Notes</a>
-<span class="breadcrumb-sep">/</span>
-<span class="breadcrumb-item breadcrumb-item--active">{{ note.title }}</span>
+<a href="{{ url_for('notes_list') }}">Notes</a>
+<span class="sep">/</span>
+<span class="current">{{ note.title }}</span>
 {% endblock %}
 
 {% block page_actions %}
-<div class="view-toggle">
-    <span class="view-toggle-btn view-toggle-btn--active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-        </svg>
-        Note
-    </span>
-    <a href="{{ url_for('note_chat', note_id=note.id) }}" class="view-toggle-btn" title="Open chat for this note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        Chat
-    </a>
-</div>
+<button type="button" class="btn btn-ghost btn-sm" id="recall-toggle" aria-pressed="false"><i data-lucide="eye-off"></i> Recall mode</button>
+<a href="{{ url_for('note_edit', note_id=note.id) }}" class="btn btn-ghost btn-sm"><i data-lucide="pencil"></i> Edit</a>
+<a href="{{ url_for('index') }}#/concept/{{ note.id }}" class="btn btn-primary btn-sm"><i data-lucide="message-circle-question"></i> Practice</a>
 {% endblock %}
 
-{% block content_class %}content-body--editor{% endblock %}
+{% macro meter(v, status, n=10) -%}
+{%- set f = (v * n)|round|int if status != 'not_started' else 0 -%}
+<span class="ascii-bar st-{{ status }}">{{ '●' * f }}<span class="ascii-rest">{{ '·' * (n - f) }}</span></span>
+{%- endmacro %}
+
+{% block content_class %}page editor-page{% endblock %}
 
 {% block content %}
-<div class="editor-container">
-    <div class="editor-toolbar">
-        <div class="toolbar-group">
-            <a href="{{ url_for('note_edit', note_id=note.id) }}" class="toolbar-action-btn" title="Edit">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-                <span>Edit</span>
-            </a>
+<div class="note-layout">
+    <article class="card doc">
+        <div class="eyebrow">{{ info.group }}</div>
+        <h1 class="doc-title">{{ note.title }}</h1>
+        <div class="doc-meta">
+            {% for t in note.tags %}<a class="tag" href="{{ url_for('notes_list', q=t) }}">{{ t }}</a>{% endfor %}
+            <span class="doc-meta-sep"></span>
+            <span class="muted-mono">edited {{ note.updated_at.strftime('%b %d') }}</span>
         </div>
-
-        <div class="toolbar-divider"></div>
-
-        <div class="toolbar-group">
-            <button id="redact-btn" class="toolbar-action-btn" title="Redact keywords to test recall">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-                <span>Redact</span>
-            </button>
+        <div class="recall-banner" id="recall-banner" hidden>
+            <i data-lucide="eye-off"></i>
+            Key terms are hidden. Say each one before you click to reveal it.
         </div>
+        <div class="doc-read" id="note-content">{{ note.content }}</div>
+    </article>
 
-        <div class="toolbar-divider"></div>
-
-        <div class="toolbar-group">
-            <a href="{{ url_for('note_chat', note_id=note.id) }}" class="toolbar-action-btn" title="Back to Chat">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <line x1="19" y1="12" x2="5" y2="12"/>
-                    <polyline points="12 19 5 12 12 5"/>
-                </svg>
-                <span>Back to Chat</span>
-            </a>
-        </div>
-
-        <div class="toolbar-spacer"></div>
-
-        <div class="toolbar-group">
-            <span class="toolbar-meta">{{ note.updated_at.strftime('%b %d, %Y') }}</span>
-        </div>
-
-        <div class="toolbar-divider"></div>
-
-        <div class="toolbar-group">
-            <form action="{{ url_for('note_delete', note_id=note.id) }}" method="post" class="inline-form"
-                  onsubmit="return confirm('Delete this note?')">
-                <button type="submit" class="toolbar-action-btn toolbar-action-btn--danger" title="Delete">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                    <span>Delete</span>
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <div class="editor-document">
-        <h1 class="editor-title-display">{{ note.title }}</h1>
-        <div class="editor-tags-row">
-            <svg class="editor-tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                <line x1="7" y1="7" x2="7.01" y2="7"/>
-            </svg>
-            <div class="editor-tags-display">
-                {% if note.tags %}
-                    {% for tag in note.tags %}
-                    <a href="{{ url_for('notes_list', tag=tag) }}" class="tag-badge tag-badge-link">{{ tag }}</a>
-                    {% endfor %}
-                {% else %}
-                    <span class="text-muted">No tags</span>
-                {% endif %}
+    <aside class="note-side">
+        <div class="card side-card">
+            <div class="eyebrow">Memory score</div>
+            <div class="side-score">
+                {% if info.mastery == 'not_started' %}<span class="big-num muted">new</span>
+                {% else %}<span class="big-num">{{ (info.mastery_value * 100)|round|int }}<small>%</small></span>{% endif %}
             </div>
+            {{ meter(info.mastery_value, info.mastery, 14) }}
+            <p class="side-sub">{% if info.review_count %}{{ info.review_count }} reviews · last {% if info.days_since is not none and info.days_since < 1 %}today{% else %}{{ info.days_since|round|int }}d ago{% endif %}{% else %}Not practiced yet{% endif %}</p>
         </div>
 
-        <article id="note-content" class="editor-body editor-body--readonly">
-            {{ note.content | replace('\n', '<br>') | safe }}
-        </article>
-    </div>
+        {% if info.ideas %}
+        <div class="card side-card">
+            <div class="eyebrow">Key ideas · {{ info.ideas|length }}</div>
+            <ul class="idea-list">
+                {% for idea in info.ideas %}
+                <li>
+                    <span class="idea-name">{{ idea.label }}</span>
+                    {{ meter(idea.strength, idea.mastery, 8) }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </aside>
 </div>
 {% endblock %}
 
 {% block body_scripts %}
 <script>
 (function () {
-    var noteId = "{{ note.id }}";
-    var btn = document.getElementById('redact-btn');
-    var contentEl = document.getElementById('note-content');
-    if (!btn || !contentEl) return;
-
-    var redacted = false;
-    var originalHTML = contentEl.innerHTML;
-    var redactionData = null;
-
-    btn.addEventListener('click', async function () {
-        if (redacted) {
-            contentEl.innerHTML = originalHTML;
-            redacted = false;
-            btn.classList.remove('toolbar-action-btn--active');
-            return;
+    const btn = document.getElementById('recall-toggle');
+    const content = document.getElementById('note-content');
+    const banner = document.getElementById('recall-banner');
+    const original = content.innerHTML;
+    let targets = null, on = false;
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    btn.addEventListener('click', async () => {
+        on = !on;
+        btn.setAttribute('aria-pressed', String(on));
+        btn.classList.toggle('is-active', on);
+        banner.hidden = !on;
+        if (!on) { content.innerHTML = original; return; }
+        if (!targets) {
+            try { targets = await (await fetch('/api/notes/{{ note.id }}/keywords')).json(); }
+            catch (e) { targets = { keywords: [], patterns: [] }; }
         }
-
-        if (redactionData === null) {
-            try {
-                var res = await fetch('/api/notes/' + noteId + '/keywords');
-                redactionData = await res.json();
-            } catch (e) {
-                redactionData = { keywords: [], patterns: [] };
-            }
-        }
-
-        var keywords = redactionData.keywords || [];
-        var patterns = redactionData.patterns || [];
-
-        if (keywords.length === 0 && patterns.length === 0) return;
-
-        // Build combined regex parts
-        var regexParts = [];
-
-        // Add server-provided patterns first (numbers, %, names) — case-sensitive
-        for (var i = 0; i < patterns.length; i++) {
-            regexParts.push(patterns[i]);
-        }
-
-        // Add TF-IDF keywords as whole-word case-insensitive matches
-        var escaped = keywords.map(function (k) {
-            return '\\b' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b';
-        });
-
-        // We apply patterns (case-sensitive) and keywords (case-insensitive) separately
-        var patternRegex = regexParts.length > 0 ? new RegExp('(' + regexParts.join('|') + ')', 'g') : null;
-        var keywordRegex = escaped.length > 0 ? new RegExp('(' + escaped.join('|') + ')', 'gi') : null;
-
-        function redactText(text) {
-            // Apply pattern-based redaction first, then keyword-based
-            if (patternRegex) {
-                text = text.replace(patternRegex, function (m) {
-                    return '<span class="redacted-word">' + m + '</span>';
-                });
-            }
-            // For keywords, only replace in text not already inside a redacted span
-            if (keywordRegex) {
-                text = text.replace(/(<span class="redacted-word">.*?<\/span>)|([^<]+)/g, function (m, span, plain) {
-                    if (span) return span;
-                    if (!plain) return m;
-                    return plain.replace(keywordRegex, function (w) {
-                        return '<span class="redacted-word">' + w + '</span>';
-                    });
-                });
-            }
-            return text;
-        }
-
-        // Only replace text outside HTML tags
-        var html = originalHTML.replace(/(<[^>]*>)|([^<]+)/g, function (match, tag, text) {
-            if (tag) return tag;
-            return redactText(text);
-        });
-
-        contentEl.innerHTML = html;
-        redacted = true;
-        btn.classList.add('toolbar-action-btn--active');
+        const words = (targets.keywords || []).map((k) => '\\b' + esc(k) + '\\b');
+        const all = (targets.patterns || []).concat(words);
+        if (!all.length) return;
+        const re = new RegExp('(' + all.join('|') + ')', 'gi');
+        content.innerHTML = original.replace(re, '<span class="redacted-word" tabindex="0">$1</span>');
+    });
+    content.addEventListener('click', (e) => {
+        const w = e.target.closest('.redacted-word');
+        if (w) w.classList.add('revealed');
     });
 })();
 </script>

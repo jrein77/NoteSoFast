@@ -1,80 +1,49 @@
 {% extends "base.html" %}
 
-{% block title %}Chat - {{ note.title }} - NoteSoFast{% endblock %}
+{% block title %}Practice · {{ note.title }} · NoteSoFast{% endblock %}
 
 {% block breadcrumb %}
-<a href="{{ url_for('index') }}" class="breadcrumb-item">Jake's Mind</a>
-<span class="breadcrumb-sep">/</span>
-<a href="{{ url_for('notes_list') }}" class="breadcrumb-item">Notes</a>
-<span class="breadcrumb-sep">/</span>
-<span class="breadcrumb-item breadcrumb-item--active">{{ note.title }}</span>
+<a href="{{ url_for('notes_list') }}">Notes</a>
+<span class="sep">/</span>
+<a href="{{ url_for('note_detail', note_id=note.id) }}">{{ note.title }}</a>
+<span class="sep">/</span>
+<span class="current">Practice</span>
 {% endblock %}
 
 {% block page_actions %}
-<div class="view-toggle">
-    <a href="{{ url_for('note_detail', note_id=note.id) }}" class="view-toggle-btn" title="View note content">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-        </svg>
-        Note
-    </a>
-    <span class="view-toggle-btn view-toggle-btn--active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        Chat
-    </span>
-</div>
+<a href="{{ url_for('index') }}#/concept/{{ note.id }}" class="btn btn-ghost btn-sm"><i data-lucide="orbit"></i> Show on map</a>
 {% endblock %}
 
-{% block content_class %}content-body--chat{% endblock %}
+{% block content_class %}{% endblock %}
 
 {% block content %}
-<div class="chat-container">
-    <div class="chat-status-bar">
-        <div class="mastery-bar-wrapper">
-            <span class="mastery-bar-label">Mastery</span>
-            <div class="mastery-bar" id="mastery-bar">
-                <div class="mastery-bar-fill mastery-bar-fill--{{ note.mastery }}"
-                     id="mastery-bar-fill"
-                     style="width: {{ (mastery_value * 100)|round|int }}%"></div>
-            </div>
-            <span class="mastery-bar-pct" id="mastery-bar-pct">{{ (mastery_value * 100)|round|int }}%</span>
+<div class="chat {% if embed %}chat--embed{% endif %}">
+    <div class="chat-status">
+        <div class="mem-ring" id="mem-ring">
+            <svg viewBox="0 0 38 38"><circle class="track" cx="19" cy="19" r="15.9"/><circle class="value" cx="19" cy="19" r="15.9" pathLength="100"/></svg>
+            <span id="mem-pct"></span>
         </div>
-        <span id="difficulty-indicator" class="difficulty-indicator"
-              data-tooltip="{% if difficulty_level == 1 %}Cued recall — recognition-style prompts with partial information to trigger memory{% elif difficulty_level == 2 %}Free recall — open-ended questions with no cues, requiring retrieval entirely from memory{% elif difficulty_level == 3 %}Application — apply concepts to new scenarios, problem-solving, cross-concept reasoning{% elif difficulty_level == 4 %}Synthesis — integrate ideas across topics, evaluate trade-offs, create novel connections{% endif %}">
-            Level {{ difficulty_level }}
-        </span>
-    </div>
-    <div class="chat-messages" id="chat-messages">
-        {% for msg in messages %}
-        <div class="chat-message chat-message--{{ msg.role }}">
-            <div class="chat-bubble chat-bubble--{{ msg.role }}">
-                {{ msg.content }}
-            </div>
+        <div class="chat-status-text">
+            <strong>{% if embed %}Memory strength{% else %}{{ note.title }}{% endif %}</strong>
+            <span id="mem-label"></span>
         </div>
-        {% endfor %}
+        <div class="level-picker">
+            <button type="button" class="level-pill level-pill--button" id="level-pill" aria-haspopup="menu" aria-expanded="false" title="Choose a difficulty level"></button>
+            <div class="level-menu" id="level-menu" role="menu" hidden></div>
+        </div>
     </div>
-    <div class="chat-input-area">
-        <form id="chat-form" class="chat-form">
-            <div class="chat-input-wrap">
-                <textarea id="chat-input" class="input chat-input-field"
-                          placeholder="Type your answer..." rows="1" autocomplete="off" autofocus></textarea>
-                <button type="button" id="hint-btn" class="hint-btn-inline" title="Get a progressive hint">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                        <circle cx="12" cy="17" r="1" fill="currentColor" stroke="currentColor" stroke-width="1"/>
-                    </svg>
-                    <span class="hint-btn-label">Hint</span>
+
+    <div class="chat-scroll" id="chat-scroll"></div>
+
+    <div class="composer-wrap">
+        <form class="composer" id="composer" autocomplete="off">
+            <textarea id="chat-input" rows="1" placeholder="Answer in your own words…" autofocus></textarea>
+            <div class="composer-bar">
+                <button type="button" class="btn btn-ghost btn-sm" id="hint-btn" title="Get a nudge, not the answer">
+                    <i data-lucide="lightbulb"></i> Hint
                 </button>
-                <button type="submit" class="btn btn-primary chat-send-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-                        <line x1="22" y1="2" x2="11" y2="13"/>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                    </svg>
-                </button>
+                <span class="composer-hint" id="composer-hint">↵ send · ⇧↵ new line</span>
+                <button type="submit" class="send-btn" id="send-btn" disabled aria-label="Send"><i data-lucide="arrow-up"></i></button>
             </div>
         </form>
     </div>
@@ -83,7 +52,15 @@
 
 {% block body_scripts %}
 <script>
-window.CHAT_NOTE_ID = "{{ note.id }}";
+window.CHAT = {
+    noteId: {{ note.id|tojson }},
+    title: {{ note.title|tojson }},
+    messages: {{ messages|tojson }},
+    mastery: {{ note.mastery|tojson }},
+    masteryValue: {{ mastery_value }},
+    levelNames: {{ level_names|tojson }},
+    levelInfo: {{ level_info|tojson }},
+};
 </script>
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 {% endblock %}

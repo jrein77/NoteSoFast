@@ -1,112 +1,98 @@
 {% extends "base.html" %}
 
-{% block title %}NoteSoFast - Jake's Mind{% endblock %}
-
-{% block breadcrumb %}
-<span class="breadcrumb-item breadcrumb-item--active">Jake's Mind</span>
-{% endblock %}
-
+{% block title %}Mind map · NoteSoFast{% endblock %}
+{% block body_class %}page-map{% endblock %}
 {% block head_extra %}
-<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 {% endblock %}
-
-{% block content_class %}content-body--full{% endblock %}
+{% block topbar %}{% endblock %}
+{% block content_class %}{% endblock %}
 
 {% block content %}
-<div class="graph-container" id="knowledge-graph">
-    <svg id="graph-svg"></svg>
-    <div class="cognitive-debt-widget" id="debt-widget" style="display: none;">
-        <div class="debt-header">
-            <span class="debt-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                Cognitive Debt
-                <span class="debt-count-badge" id="debt-count">0</span>
-            </span>
-            <button class="debt-dismiss" id="debt-dismiss" title="Dismiss">&times;</button>
-        </div>
-        <p class="debt-message" id="debt-message"></p>
-        <a class="debt-cta" id="debt-cta" href="#">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            Start Quick Quiz
-        </a>
+<div class="map" id="map">
+    <svg id="map-svg" aria-label="Knowledge map"></svg>
+
+    <div class="map-ui map-title" aria-live="polite">
+        <div class="eyebrow" id="map-eyebrow"></div>
+        <h1 id="map-heading"></h1>
     </div>
-    <div class="graph-zoom-controls">
-        <button id="graph-zoom-in" class="graph-zoom-btn" title="Zoom In">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
+
+    <div class="map-ui map-crumb glass">
+        <button type="button" class="btn btn-ghost btn-icon" id="map-up" title="Up a level (Esc)" disabled>
+            <i data-lucide="arrow-up-left"></i>
         </button>
-        <button id="graph-zoom-out" class="graph-zoom-btn" title="Zoom Out">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
+        <div class="crumb-trail" id="crumb-trail"></div>
+        <span class="level-hint" id="level-hint">Click a group to zoom in</span>
+        <button type="button" class="btn btn-glass btn-sm" id="practice-btn" hidden>
+            <i data-lucide="message-circle-question"></i> Practice
         </button>
     </div>
-    <div class="graph-bottom-bar">
-        <div class="graph-search-bar">
-            <svg class="graph-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input type="text" id="graph-search" class="graph-search-input" placeholder="Search nodes...">
+
+    <div class="map-ui map-tools">
+        <button type="button" class="search-trigger" data-open-palette>
+            <i data-lucide="search"></i><span>Search concepts</span><kbd>⌘K</kbd>
+        </button>
+        <button type="button" class="btn btn-glass btn-icon" id="legend-btn" title="What the map shows" aria-expanded="false">
+            <i data-lucide="info"></i>
+        </button>
+    </div>
+
+    <div class="map-ui legend glass" id="legend" hidden>
+        <h4>Reading a neuron</h4>
+        <div class="legend-row ascii"><span>( 72% )</span> memory score for the concept</div>
+        <div class="legend-row ascii"><span><span style="color:#4f7d5c">•••••</span><span style="color:#c9c9c1">··</span><span style="color:#4f7d5c">●</span></span> a key idea, its dendrite lit to its score</div>
+        <div class="legend-row ascii"><span><span style="color:#bb5a45">••</span><span style="color:#c9c9c1">·····</span><span style="color:#bb5a45">·</span></span> a key idea that is fading</div>
+        <p style="margin-top:4px">Small neurons around a concept are its key ideas. A concept with none stands alone.</p>
+        <h4>Connections</h4>
+        <div class="legend-row ascii"><span style="font-weight:700">•••••••&lt;</span> strong · signals run often</div>
+        <div class="legend-row ascii"><span style="color:#5f5f5a">·······&lt;</span> forming</div>
+        <div class="legend-row ascii"><span style="color:#c6c6bf">·  ·  ·</span> never practiced</div>
+        <p>Connections only grow when you answer a question linking two concepts, and they fade without review.</p>
+    </div>
+
+    <div class="map-ui toast glass" id="debt-toast" hidden>
+        <div class="toast-head">
+            <i data-lucide="hourglass"></i> <span id="debt-title">Unreviewed concepts</span>
+            <button type="button" class="btn btn-ghost btn-icon" id="debt-dismiss" title="Dismiss"><i data-lucide="x"></i></button>
         </div>
-        <a href="{{ url_for('note_create') }}" class="btn btn-primary graph-add-btn">+ Add Note</a>
+        <p id="debt-message"></p>
+        <button type="button" class="btn btn-glass btn-sm" id="debt-cta"><i data-lucide="play"></i> Start with the most connected</button>
     </div>
-    <div class="graph-legend">
-        <div class="legend-item"><span class="legend-dot legend-dot--green"></span> Mastered</div>
-        <div class="legend-item"><span class="legend-dot legend-dot--yellow"></span> Progressing</div>
-        <div class="legend-item"><span class="legend-dot legend-dot--red"></span> Not Understood</div>
-        <div class="legend-item"><span class="legend-dot legend-dot--gray"></span> Not Started</div>
-        <div class="legend-item"><span class="legend-line--dotted"></span> Potential Link</div>
+
+    <div class="map-ui time-dock glass">
+        <div class="time-dock-label"><i data-lucide="history"></i> Time travel</div>
+        <div class="time-dock-body">
+            <input type="range" class="slider" id="time-slider" min="0" max="60" step="1" value="{{ clock_offset_days|round|int }}" aria-label="Simulate days passing">
+            <div class="time-dock-meta">
+                <span id="time-hint">Drag to see what fades without review</span>
+                <span class="time-dock-value" id="time-value">Today</span>
+            </div>
+        </div>
     </div>
+
+    <div class="map-ui map-zoom glass">
+        <button type="button" class="btn btn-ghost btn-icon" id="zoom-in" title="Zoom in"><i data-lucide="plus"></i></button>
+        <button type="button" class="btn btn-ghost btn-icon" id="zoom-out" title="Zoom out"><i data-lucide="minus"></i></button>
+        <button type="button" class="btn btn-ghost btn-icon" id="zoom-fit" title="Fit to screen"><i data-lucide="scan"></i></button>
+    </div>
+
+    <aside class="drawer glass" id="drawer" aria-hidden="true">
+        <div class="drawer-head">
+            <div class="drawer-title">
+                <h3 id="drawer-title"></h3>
+                <small><span class="orb" id="drawer-orb"></span><span id="drawer-sub"></span></small>
+            </div>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm" id="drawer-max" title="Focus on practice (hide the map)"><i data-lucide="maximize-2"></i></button>
+            <a class="btn btn-ghost btn-icon btn-sm" id="drawer-note" href="#" title="Open note"><i data-lucide="file-text"></i></a>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm" id="drawer-close" title="Close"><i data-lucide="x"></i></button>
+        </div>
+        <iframe class="drawer-frame" id="drawer-frame" title="Practice"></iframe>
+    </aside>
+
+    <div class="map-tooltip" id="map-tooltip" hidden></div>
 </div>
 {% endblock %}
 
 {% block body_scripts %}
-<script src="{{ url_for('static', filename='js/graph.js') }}"></script>
-<script>
-// Cognitive debt widget
-(async function () {
-    var widget = document.getElementById('debt-widget');
-    var countEl = document.getElementById('debt-count');
-    var messageEl = document.getElementById('debt-message');
-    var ctaEl = document.getElementById('debt-cta');
-    var dismissBtn = document.getElementById('debt-dismiss');
-    if (!widget) return;
-
-    // Check if user dismissed this session
-    if (sessionStorage.getItem('debt-dismissed')) return;
-
-    try {
-        var resp = await fetch('/api/cognitive-debt');
-        var data = await resp.json();
-        if (data.debt_count > 0 && data.nudge_message) {
-            countEl.textContent = data.debt_count;
-            messageEl.textContent = data.nudge_message;
-            widget.style.display = 'block';
-
-            // Link CTA to the first debt node's chat
-            if (data.nodes && data.nodes.length > 0) {
-                ctaEl.href = '/notes/' + data.nodes[0].note_id + '/chat';
-            }
-        }
-    } catch (e) {
-        // Silently fail
-    }
-
-    if (dismissBtn) {
-        dismissBtn.addEventListener('click', function () {
-            widget.style.display = 'none';
-            sessionStorage.setItem('debt-dismissed', '1');
-        });
-    }
-})();
-</script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
 {% endblock %}

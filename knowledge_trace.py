@@ -3,14 +3,15 @@ Knowledge tracing module: per-topic mastery estimation with Bayesian-style updat
 time-aware forgetting, few-shot initialization, and adaptive difficulty routing.
 """
 
-from datetime import datetime
 import math
+import clock
 
 # --- Constants (informed by literature) ---
 
 MASTERY_THRESHOLD = 0.95       # Zhang et al., 2025 — BKT mastery threshold
 INITIAL_MASTERY = 0.3          # Prior for uninitialized topics
-FORGETTING_RATE = 0.05         # Exponential decay rate per day (DaTaKT-informed)
+FORGETTING_RATE = 0.05         # Base exponential decay rate per day (DaTaKT-informed)
+STABILITY_PER_REVIEW = 0.5     # Each correct review slows forgetting (spacing effect)
 FEW_SHOT_WINDOW = 3            # Number of interactions before initialization is complete
 
 # How much each difficulty level moves mastery on correct/incorrect answers
@@ -41,6 +42,19 @@ def get_mastery(note_id):
     return knowledge_state[note_id]
 
 
+def forgetting_rate(state):
+    """Per-day decay rate. Memories that have been successfully retrieved more
+    often are more stable, so they decay more slowly."""
+    correct = sum(1 for i in state["interactions"] if i["correct"])
+    return FORGETTING_RATE / (1.0 + STABILITY_PER_REVIEW * correct)
+
+
+def _decay_anchor(state):
+    """Time from which decay is measured: the last moment the stored mastery
+    value was brought up to date (a review, or an explicit decay write)."""
+    return state.get("decayed_at") or state["last_session"]
+
+
 def get_decayed_mastery(note_id):
     """Return the current mastery with time-based decay applied on-the-fly.
 
@@ -52,11 +66,11 @@ def get_decayed_mastery(note_id):
     if state["last_session"] is None:
         return state["mastery"]
 
-    days_elapsed = (datetime.now() - state["last_session"]).total_seconds() / 86400.0
+    days_elapsed = (clock.now() - _decay_anchor(state)).total_seconds() / 86400.0
     if days_elapsed < 0.01:  # Less than ~15 minutes, no decay
         return state["mastery"]
 
-    decay = math.exp(-FORGETTING_RATE * days_elapsed)
+    decay = math.exp(-forgetting_rate(state) * days_elapsed)
     return INITIAL_MASTERY + (state["mastery"] - INITIAL_MASTERY) * decay
 
 
@@ -70,14 +84,16 @@ def apply_time_decay(note_id):
     if state["last_session"] is None:
         return
 
-    days_elapsed = (datetime.now() - state["last_session"]).total_seconds() / 86400.0
+    days_elapsed = (clock.now() - _decay_anchor(state)).total_seconds() / 86400.0
     if days_elapsed < 0.01:  # Less than ~15 minutes, skip decay
         return
 
-    decay = math.exp(-FORGETTING_RATE * days_elapsed)
+    decay = math.exp(-forgetting_rate(state) * days_elapsed)
     old_mastery = state["mastery"]
     # Decay toward INITIAL_MASTERY rather than zero (floor effect)
     state["mastery"] = INITIAL_MASTERY + (old_mastery - INITIAL_MASTERY) * decay
+    # Move the anchor so later reads don't decay the same interval twice
+    state["decayed_at"] = clock.now()
 
 
 def update_mastery(note_id, difficulty_level, correct, confidence=None):
@@ -111,13 +127,14 @@ def update_mastery(note_id, difficulty_level, correct, confidence=None):
 
     # Record interaction
     state["interactions"].append({
-        "timestamp": datetime.now(),
+        "timestamp": clock.now(),
         "difficulty_level": difficulty_level,
         "correct": correct,
         "confidence": confidence,
     })
 
-    state["last_session"] = datetime.now()
+    state["last_session"] = clock.now()
+    state["decayed_at"] = clock.now()
 
     # Check if few-shot initialization window is complete
     if not state["initialized"] and len(state["interactions"]) >= FEW_SHOT_WINDOW:
@@ -142,7 +159,7 @@ def get_recommended_difficulty(note_id):
     # If returning after a gap and last interaction was at a higher level,
     # start one level lower (Huang et al., 2026 time-awareness)
     if state["last_session"] is not None:
-        days_elapsed = (datetime.now() - state["last_session"]).total_seconds() / 86400.0
+        days_elapsed = (clock.now() - state["last_session"]).total_seconds() / 86400.0
         if days_elapsed > 1.0 and state["interactions"]:
             last_level = state["interactions"][-1]["difficulty_level"]
             # Drop one level on return after >1 day gap
@@ -170,6 +187,13 @@ def get_response_mode(note_id):
     if mastery >= MASTERY_THRESHOLD:
         return "direct"
     return "question"
+
+
+def node_label(note_id):
+    """UI label for a note: 'not_started' until it has been practiced at least once."""
+    if not get_mastery(note_id)["interactions"]:
+        return "not_started"
+    return mastery_to_label(get_decayed_mastery(note_id))
 
 
 def mastery_to_label(mastery_float):

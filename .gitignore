@@ -215,3 +215,6 @@ __marimo__/
 CLAUDE.md
 # macOS
 .DS_Store
+
+# Local app state (review history)
+data/

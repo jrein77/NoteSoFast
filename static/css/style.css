@@ -2465,3 +2465,291 @@ a.breadcrumb-item:hover {
 .debt-cta:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+/* =====================================================================
+   Knowledge graph v2: connection strength, time travel, practice drawer
+   ===================================================================== */
+
+/* Debt widget sits beside the zoom controls so it never covers the legend */
+.cognitive-debt-widget {
+    top: 20px;
+    right: auto;
+    left: 72px;
+}
+
+.graph-legend {
+    gap: 7px;
+    transition: right 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.legend-heading {
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+}
+.legend-heading:first-child { margin-top: 0; }
+.legend-line {
+    width: 20px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.legend-line--strong { height: 5px; background: #a5f3fc; box-shadow: 0 0 6px rgba(165, 243, 252, 0.6); }
+.legend-line--weak { height: 2px; background: #4a6b7a; }
+.legend-line--dormant {
+    height: 1px;
+    background: repeating-linear-gradient(to right, #555 0 2px, transparent 2px 6px);
+}
+
+.graph-tooltip { max-width: 280px; }
+.graph-tooltip .tip-muted { color: var(--color-text-muted); }
+
+/* Time travel: the whole canvas gets a cool tint while simulating the future */
+.graph-container::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(56, 120, 160, 0.16) 100%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.graph-container.is-time-travel::after { opacity: 1; }
+
+.time-travel {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 360px;
+    z-index: 10;
+    padding: 12px 16px 10px;
+    background: rgba(10, 10, 10, 0.88);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    transition: left 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease;
+}
+.is-time-travel .time-travel { border-color: rgba(125, 211, 252, 0.45); }
+.time-travel-head,
+.time-travel-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.time-travel-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+.time-travel-value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.is-time-travel .time-travel-value { color: #7dd3fc; }
+.time-travel-foot {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+}
+.time-travel-reset {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font: inherit;
+    cursor: pointer;
+    padding: 2px 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.time-travel-reset:hover { color: var(--color-text); }
+
+.time-travel-slider {
+    --fill: 0%;
+    width: 100%;
+    margin: 10px 0 8px;
+    height: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    border-radius: 2px;
+    background: linear-gradient(to right, #7dd3fc 0 var(--fill), #2a2a2a var(--fill) 100%);
+    outline: none;
+    cursor: pointer;
+}
+.time-travel-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #0a0a0a;
+    box-shadow: 0 0 0 1px #7dd3fc;
+}
+.time-travel-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #0a0a0a;
+    box-shadow: 0 0 0 1px #7dd3fc;
+}
+.time-travel-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.6); }
+
+/* Practice drawer */
+.chat-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 440px;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.drawer-open .chat-drawer { transform: translateX(0); }
+.drawer-open .graph-legend { right: 460px; }
+.drawer-open .time-travel { left: calc((100% - 440px) / 2); }
+.drawer-open .graph-add-btn { display: none; }
+
+.chat-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+.chat-drawer-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.chat-drawer-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.4s ease;
+}
+.chat-drawer-title {
+    font-weight: 600;
+    font-size: 0.92rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.chat-drawer-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.chat-drawer-link,
+.chat-drawer-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.chat-drawer-link:hover,
+.chat-drawer-close:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+}
+.chat-drawer-frame {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: var(--color-surface);
+}
+
+/* Embedded chat (inside the drawer) */
+body.embed { background: var(--color-surface); }
+body.embed .main-content { margin-left: 0; min-height: 100vh; }
+body.embed .content-body--chat { height: 100vh; padding: 0 16px; }
+body.embed .chat-bubble { max-width: 88%; }
+
+/* "Strengthening links to" strip under the mastery bar */
+.connect-strip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: 0.74rem;
+    color: var(--color-text-muted);
+}
+.connect-strip[hidden] { display: none; }
+.connect-strip-label { margin-right: 2px; }
+.connect-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(125, 211, 252, 0.08);
+    border: 1px solid rgba(125, 211, 252, 0.3);
+    color: #bae6fd;
+    margin-right: 4px;
+}
+
+/* Inline result after an answer that exercised a connection */
+.chat-message--system { justify-content: center; }
+.connection-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.74rem;
+    font-family: var(--font-mono);
+    animation: slideInDebt 0.3s ease-out;
+}
+.connection-result-row.is-up { color: #7dd3fc; }
+.connection-result-row.is-down { color: var(--color-danger); }
+
+@media (max-width: 768px) {
+    .cognitive-debt-widget { left: 10px; right: 10px; top: 56px; max-width: none; }
+    .time-travel { bottom: 72px; width: calc(100% - 24px); }
+    .chat-drawer { width: 100%; }
+    .drawer-open .time-travel { display: none; }
+    .drawer-open .graph-legend { right: 10px; }
+}
+
+/* Prevent focus inside the drawer iframe from scrolling the canvas sideways */
+.graph-container,
+.content-body--full { overflow: clip; }
+.chat-drawer { visibility: hidden; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 0.35s; }
+.drawer-open .chat-drawer { visibility: visible; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s; }
+
+/* Keep the canvas readable when the drawer is open on smaller screens */
+@media (max-width: 1400px) {
+    .drawer-open .graph-legend { display: none; }
+}
+@media (max-width: 1150px) {
+    .drawer-open .cognitive-debt-widget { display: none; }
+    .drawer-open .time-travel { width: 280px; }
+}
+@media (max-width: 1000px) {
+    .drawer-open .time-travel,
+    .drawer-open .graph-search-bar { display: none; }
+}
